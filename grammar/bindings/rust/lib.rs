@@ -11,11 +11,15 @@
 
 use tree_sitter_language::LanguageFn;
 
+#[expect(unsafe_code, reason = "the generated parser is C, reached through FFI")]
+// SAFETY: `tree_sitter_askama` is defined by `src/parser.c`, which build.rs compiles into
+// this crate, with this signature.
 unsafe extern "C" {
     fn tree_sitter_askama() -> *const ();
 }
 
 /// The tree-sitter [`LanguageFn`] for Askama templates.
+#[expect(unsafe_code, reason = "the generated parser is C, reached through FFI")]
 // SAFETY: `tree_sitter_askama` is the generated parser's constructor, which
 // returns a pointer to a static `TSLanguage`.
 pub const LANGUAGE: LanguageFn = unsafe { LanguageFn::from_raw(tree_sitter_askama) };

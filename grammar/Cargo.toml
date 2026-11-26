@@ -23,5 +23,10 @@ cc = "1"
 askama_parser.workspace = true
 tree-sitter = "0.27"
 
-[lints]
-workspace = true
+# The workspace forbids `unsafe`; this crate's binding calls the generated C
+# parser, so it denies `unsafe` instead and allows it only at that call.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
