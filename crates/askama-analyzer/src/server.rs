@@ -25,7 +25,7 @@ use async_lsp::tracing::TracingLayer;
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::notification::{
     DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
-    Initialized, PublishDiagnostics, ShowMessage,
+    Initialized, Progress, PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
     Completion, Formatting, GotoDefinition, HoverRequest, Initialize, PrepareRenameRequest,
@@ -34,9 +34,11 @@ use lsp_types::request::{
 use lsp_types::{
     CompletionOptions, Diagnostic, DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions,
     FileSystemWatcher, GlobPattern, HoverProviderCapability, InitializeParams, InitializeResult,
-    MessageType, OneOf, PublishDiagnosticsParams, Registration, RegistrationParams, RenameOptions,
-    ServerCapabilities, ServerInfo, ShowMessageParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, Url,
+    MessageType, NumberOrString, OneOf, ProgressParams, ProgressParamsValue,
+    PublishDiagnosticsParams, Registration, RegistrationParams, RenameOptions, ServerCapabilities,
+    ServerInfo, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, Url, WorkDoneProgress, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
 use parking_lot::Mutex;
 use tokio::sync::{Notify, mpsc, oneshot};
@@ -56,6 +58,8 @@ const SETTLE: Duration = Duration::from_millis(150);
 /// The longest the lane waits while edits keep arriving, so continuous typing still gets
 /// answers.
 const MAX_SETTLE: Duration = Duration::from_millis(1000);
+/// How long the client has to accept a progress token before loading goes unshown.
+const PROGRESS_CREATE: Duration = Duration::from_secs(5);
 /// Requests waiting for the lane. An editor sends a handful at a time; the bound holds back a
 /// client that floods it rather than growing without limit.
 const QUEUE: usize = 64;
@@ -108,6 +112,9 @@ struct Shared {
     inner: Mutex<Inner>,
     /// Wakes the lane: an edit, or rust-analyzer having published.
     wake: Arc<Notify>,
+    /// rust-analyzer loading as the client shows it: `None` when the client takes no
+    /// server-made progress, else each loading workspace root, `true` once its bar is shown.
+    loading: Arc<Mutex<Option<HashMap<PathBuf, bool>>>>,
 }
 
 #[derive(Default)]
@@ -313,6 +320,13 @@ fn initialize(state: &mut State, params: &InitializeParams) -> InitializeResult 
             .and_then(|general| general.position_encodings.as_deref()),
     );
     state.config = Config::from_initialization_options(params.initialization_options.as_ref());
+    let progress = params
+        .capabilities
+        .window
+        .as_ref()
+        .and_then(|window| window.work_done_progress)
+        .unwrap_or(false);
+    *state.shared.loading.lock() = progress.then(HashMap::new);
     state.roots = params
         .workspace_folders
         .iter()
@@ -445,7 +459,7 @@ async fn lane(
                 &docs,
                 &changed,
                 &config,
-                &shared.wake,
+                &shared,
                 encoding,
                 &mut published,
             )
@@ -465,7 +479,7 @@ async fn lane(
                 // The request is about the documents as they are now.
                 shared.take(&mut docs, &mut changed);
                 if !changed.is_empty() {
-                    refresh(&client, &mut workspaces, &docs, &changed, &config, &shared.wake, encoding, &mut published).await;
+                    refresh(&client, &mut workspaces, &docs, &changed, &config, &shared, encoding, &mut published).await;
                     changed.clear();
                 }
                 tracing::debug!(uri = %query.uri(), "answering");
@@ -500,7 +514,7 @@ async fn refresh(
     docs: &HashMap<PathBuf, Doc>,
     changed: &BTreeSet<PathBuf>,
     config: &Config,
-    wake: &Arc<Notify>,
+    shared: &Shared,
     encoding: Encoding,
     published: &mut BTreeMap<PathBuf, Vec<Diagnostic>>,
 ) {
@@ -521,14 +535,75 @@ async fn refresh(
             workspace.reset_failure();
         }
         if workspace.wants_rust(docs.keys().map(PathBuf::as_path))
-            && let Some(message) = workspace.start(config, wake).await
+            && let Some(message) = workspace.start(config, &shared.wake).await
         {
             warn(client, message);
         }
         workspace.sync();
         workspace.pull_stale().await;
+        if let Some(loading) = workspace.loading_changed() {
+            progress(client, &shared.loading, workspace.analysis.root(), loading);
+        }
     }
     publish(client, workspaces, docs, encoding, published);
+}
+
+/// Shows rust-analyzer loading a workspace as progress in the client, so the first seconds of
+/// unknown types are explained. Only for a client that declared it takes server-made progress,
+/// and never on the lane: a client slow to accept the token holds up nothing, and one that
+/// refuses it, or answers after loading ended, is never sent its end.
+fn progress(
+    client: &ClientSocket,
+    shown: &Arc<Mutex<Option<HashMap<PathBuf, bool>>>>,
+    root: &Path,
+    loading: bool,
+) {
+    let token = NumberOrString::String(format!("askama-analyzer/rust-analyzer/{}", root.display()));
+    let mut guard = shown.lock();
+    let Some(roots) = guard.as_mut() else {
+        return;
+    };
+    if !loading {
+        if roots.remove(root) == Some(true) {
+            let _ = client.notify::<Progress>(ProgressParams {
+                token,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::End(
+                    WorkDoneProgressEnd::default(),
+                )),
+            });
+        }
+        return;
+    }
+    roots.insert(root.to_owned(), false);
+    drop(guard);
+    let mut client = client.clone();
+    let shown = Arc::clone(shown);
+    let root = root.to_owned();
+    tokio::spawn(async move {
+        let created = tokio::time::timeout(
+            PROGRESS_CREATE,
+            client.work_done_progress_create(WorkDoneProgressCreateParams {
+                token: token.clone(),
+            }),
+        )
+        .await;
+        let mut guard = shown.lock();
+        let Some(state) = guard.as_mut().and_then(|roots| roots.get_mut(&root)) else {
+            return;
+        };
+        if matches!(created, Ok(Ok(()))) {
+            *state = true;
+            let _ = client.notify::<Progress>(ProgressParams {
+                token,
+                value: ProgressParamsValue::WorkDone(WorkDoneProgress::Begin(
+                    WorkDoneProgressBegin {
+                        title: "Loading rust-analyzer for templates".to_owned(),
+                        ..WorkDoneProgressBegin::default()
+                    },
+                )),
+            });
+        }
+    });
 }
 
 fn warn(client: &ClientSocket, message: String) {

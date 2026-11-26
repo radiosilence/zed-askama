@@ -6,10 +6,12 @@
 
 pub mod analysis;
 pub mod check;
+pub mod complete;
 pub mod features;
 pub mod format;
 pub mod generator;
 pub mod index;
+pub mod navigate;
 pub mod overlay;
 pub mod project;
 pub mod ra;

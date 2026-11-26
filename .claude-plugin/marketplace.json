@@ -1,0 +1,12 @@
+{
+  "name": "zed-askama",
+  "owner": { "name": "radiosilence" },
+  "description": "Askama template support for Claude Code, through askama-analyzer",
+  "plugins": [
+    {
+      "name": "askama",
+      "source": "./editors/claude-code",
+      "description": "askama-analyzer for Claude Code's LSP tool"
+    }
+  ]
+}

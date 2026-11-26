@@ -52,12 +52,13 @@ async fn a_field_the_struct_does_not_have_is_an_error_on_its_name_in_the_templat
     let problems = workspace.problems();
     let broken = fixture().join("templates/broken.html");
     let text = std::fs::read_to_string(&broken).expect("broken.html exists");
+    // rust-analyzer reports an unknown field on the whole field access.
     let list = problems
         .get(&broken)
         .unwrap_or_else(|| panic!("broken.html has no problem; all problems: {problems:?}"));
     assert!(
         list.iter()
-            .any(|problem| &text[problem.range.clone()] == "nme"),
+            .any(|problem| text[problem.range.clone()] == *"product.nme"),
         "no error covers `nme`: {list:?}"
     );
     assert!(
@@ -185,5 +186,45 @@ async fn completing_after_a_dot_offers_the_fields_and_methods_of_the_loop_variab
     assert!(
         labels.iter().any(|label| label.starts_with("price(")),
         "the method `price` is not offered: {labels:?}"
+    );
+}
+
+#[tokio::test]
+async fn completing_a_bare_name_offers_the_loop_variable_in_scope() {
+    let Some(rust_analyzer) = rust_analyzer() else {
+        return;
+    };
+    let mut workspaces = vec![shop(rust_analyzer).await];
+    // Inside the loop, on the `p` of `product.name`: a bare name being typed.
+    let (uri, position) = after(&fixture().join("templates/shop.html"), "<li>{{ p", 0);
+    let (reply, answer) = oneshot::channel();
+    features::answer(
+        &mut workspaces,
+        Query::Completion(
+            CompletionParams {
+                text_document_position: TextDocumentPositionParams {
+                    text_document: TextDocumentIdentifier { uri },
+                    position,
+                },
+                context: None,
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            },
+            reply,
+        ),
+    )
+    .await;
+    let labels: Vec<String> = match answer.await.expect("the lane answers") {
+        Some(CompletionResponse::List(list)) => {
+            list.items.into_iter().map(|item| item.label).collect()
+        }
+        Some(CompletionResponse::Array(items)) => {
+            items.into_iter().map(|item| item.label).collect()
+        }
+        None => Vec::new(),
+    };
+    assert!(
+        labels.iter().any(|label| label == "product"),
+        "the loop variable `product` is not offered: {labels:?}"
     );
 }

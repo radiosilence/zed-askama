@@ -17,6 +17,7 @@ use lsp_types::{
 };
 use tokio::sync::oneshot;
 
+use crate::complete;
 use crate::ra::READY;
 use crate::text::Lines;
 use crate::workspace::{Asked, Workspace};
@@ -150,7 +151,10 @@ async fn definition(
     params: GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
     let at = params.text_document_position_params;
-    let (workspace, path, _, offset) = locate(workspaces, &at.text_document.uri, at.position)?;
+    let (workspace, path, text, offset) = locate(workspaces, &at.text_document.uri, at.position)?;
+    if let Some(location) = template_definition(workspace, &path, &text, offset) {
+        return Some(GotoDefinitionResponse::Scalar(location));
+    }
     let asked = workspace.ask(&path, offset)?;
     let response = server(workspace)
         .await?
@@ -177,6 +181,30 @@ async fn definition(
         .filter_map(|location| workspace.user_location(location))
         .collect();
     (!mapped.is_empty()).then_some(GotoDefinitionResponse::Array(mapped))
+}
+
+/// The definition of a template-level name at the offset: a path, a macro or a block.
+fn template_definition(
+    workspace: &Workspace,
+    path: &Path,
+    text: &str,
+    offset: usize,
+) -> Option<Location> {
+    let known = workspace.analysis.templates();
+    let read = |file: &Path| {
+        workspace
+            .analysis
+            .vfs
+            .read(file)
+            .ok()
+            .map(|text| text.to_string())
+    };
+    let target = crate::navigate::definition(path, text, offset, &known, &read)?;
+    let target_text = workspace.analysis.vfs.read(&target.path).ok()?;
+    Some(Location {
+        uri: Url::from_file_path(&target.path).ok()?,
+        range: Lines::new(&target_text, workspace.encoding()).range(&target.range),
+    })
 }
 
 async fn references(
@@ -350,21 +378,100 @@ fn word_at(text: &str, offset: usize) -> Option<&str> {
     (start < end).then(|| &text[start..end])
 }
 
-/// Completion asks rust-analyzer about a probe: the item generated with a marker typed at the
-/// cursor, so that `{{ user. }}` parses, and the marker taken out again before rust-analyzer
-/// sees the code. Each completion's edit is moved from around the cursor in the probe to
-/// around the cursor in the template.
+/// Completion: tag keywords, template paths and askama's filters from the text alone, and
+/// everything Rust from rust-analyzer.
 async fn completion(
     workspaces: &mut [Workspace],
     params: CompletionParams,
 ) -> Option<CompletionResponse> {
     let at = params.text_document_position;
-    let (workspace, path, text, offset) = locate(workspaces, &at.text_document.uri, at.position)?;
-    let (rust_file, item) = workspace.analysis.readers(&path).into_iter().next()?;
+    let path = at.text_document.uri.to_file_path().ok()?;
+    let index = workspaces
+        .iter()
+        .position(|workspace| workspace.analysis.owns(&path))
+        .or_else(|| (!workspaces.is_empty()).then_some(0))?;
+    let workspace = &mut workspaces[index];
+    let text = workspace.analysis.vfs.read(&path).ok()?;
+    let lines = Lines::new(&text, workspace.encoding());
+    let offset = lines.offset(at.position)?;
+    let replacing = |typed: &str| lines.range(&(offset - typed.len()..offset));
+
+    let mut items: Vec<CompletionItem> = Vec::new();
+    let mut incomplete = false;
+    match complete::spot(&text, offset) {
+        complete::Spot::Keyword { typed } => {
+            items = complete::keywords(&text, offset);
+            give_range(&mut items, replacing(typed));
+        }
+        complete::Spot::Path { typed } => {
+            // The innermost package holding the template, whose askama.toml askama reads.
+            let dirs: Vec<PathBuf> = workspace
+                .analysis
+                .packages
+                .iter()
+                .filter(|package| path.starts_with(&package.manifest_dir))
+                .max_by_key(|package| package.manifest_dir.components().count())
+                .map(|package| {
+                    let config = workspace
+                        .analysis
+                        .vfs
+                        .read(&package.manifest_dir.join("askama.toml"))
+                        .ok();
+                    complete::template_dirs(&package.manifest_dir, config.as_deref())
+                })
+                .unwrap_or_default();
+            items = complete::paths(&dirs);
+            give_range(&mut items, replacing(typed));
+        }
+        spot => {
+            if let complete::Spot::Filter { typed } = spot {
+                let mut filters = complete::filters();
+                give_range(&mut filters, replacing(typed));
+                items.extend(filters);
+            }
+            if workspace.analysis.owns(&path)
+                && let Some((rust, more)) =
+                    rust_completion(workspace, &path, &text, offset, params.context).await
+            {
+                items.extend(rust);
+                incomplete = more;
+            }
+        }
+    }
+    Some(CompletionResponse::List(CompletionList {
+        is_incomplete: incomplete,
+        items,
+    }))
+}
+
+/// Makes each item replace `range`: the part of a word already typed.
+fn give_range(items: &mut [CompletionItem], range: lsp_types::Range) {
+    for item in items {
+        let new_text = item
+            .insert_text
+            .take()
+            .unwrap_or_else(|| item.label.clone());
+        item.text_edit = Some(CompletionTextEdit::Edit(TextEdit { range, new_text }));
+    }
+}
+
+/// rust-analyzer's completions at a template offset. It is asked about a probe: the item
+/// generated with a marker typed at the cursor, so that `{{ user. }}` parses, and the marker
+/// taken out again before rust-analyzer sees the code. A bare name, which askama writes as
+/// `self.name` because it is no local, is asked about twice: as written, for the struct's
+/// fields and methods, and with `self.` blanked, for the locals in scope.
+async fn rust_completion(
+    workspace: &mut Workspace,
+    path: &Path,
+    text: &Arc<str>,
+    offset: usize,
+    context: Option<lsp_types::CompletionContext>,
+) -> Option<(Vec<CompletionItem>, bool)> {
+    let (rust_file, item) = workspace.analysis.readers(path).into_iter().next()?;
     let marked: Arc<str> = Arc::from(format!("{}{MARKER}{}", &text[..offset], &text[offset..]));
     let mut probe = workspace
         .analysis
-        .probe(&rust_file, item, &path, marked)
+        .probe(&rust_file, item, path, marked)
         .await?;
 
     // The identifier the marker landed in: a variable, a field or a filter's name.
@@ -376,7 +483,8 @@ async fn completion(
                 .chars()
                 .all(|c| c.is_alphanumeric() || c == '_')
     })?;
-    let marker_at = token.generated.start + probe.code[token.generated.clone()].find(MARKER)?;
+    let token_start = token.generated.start;
+    let marker_at = token_start + probe.code[token.generated.clone()].find(MARKER)?;
     let removed = marker_at..marker_at + MARKER.len();
     probe.code.replace_range(removed.clone(), "");
     for mapping in &mut probe.map {
@@ -386,40 +494,82 @@ async fn completion(
         error.generated = without(&error.generated, &removed);
     }
 
-    let (overlay, _) = workspace.send_probe(&rust_file, item, &probe)?;
+    let mut probes = vec![(probe.clone(), false)];
+    if probe.code[..token_start].ends_with("self.") {
+        let mut locals = probe;
+        let at = token_start - "self.".len();
+        locals.code.replace_range(at..token_start, "     ");
+        probes.push((locals, true));
+    }
+
+    let mut items = Vec::new();
+    let mut incomplete = false;
+    for (probe, locals_only) in probes {
+        let Some((found, more)) = ask_completion(
+            workspace,
+            &rust_file,
+            item,
+            &probe,
+            marker_at,
+            text,
+            offset,
+            context.clone(),
+        )
+        .await
+        else {
+            continue;
+        };
+        incomplete |= more;
+        items.extend(found.into_iter().filter(|item| {
+            !item.label.starts_with("__askama")
+                && (!locals_only || item.kind == Some(lsp_types::CompletionItemKind::VARIABLE))
+        }));
+    }
+    workspace.restore(&rust_file);
+    Some((items, incomplete))
+}
+
+/// Sends one probe and asks rust-analyzer to complete at the marker's place, moving each
+/// completion's edit from around the cursor in the probe to around it in the template: the
+/// identifier being typed is the same text in both.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one probe's question, passed apart"
+)]
+async fn ask_completion(
+    workspace: &mut Workspace,
+    rust_file: &Path,
+    item: usize,
+    probe: &askama_analyzer_codegen::Generated,
+    marker_at: usize,
+    text: &str,
+    offset: usize,
+    context: Option<lsp_types::CompletionContext>,
+) -> Option<(Vec<CompletionItem>, bool)> {
+    let (overlay, _) = workspace.send_probe(rust_file, item, probe)?;
     let cursor = overlay.from_generated(item, marker_at)?;
     let lines = Lines::new(overlay.text(), workspace.encoding());
     let asked = TextDocumentPositionParams {
         text_document: TextDocumentIdentifier {
-            uri: Url::from_file_path(&rust_file).ok()?,
+            uri: Url::from_file_path(rust_file).ok()?,
         },
         position: lines.position(cursor),
     };
-    let response = match server(workspace).await {
-        Some(server) => {
-            let mut server = server;
-            server
-                .completion(CompletionParams {
-                    text_document_position: asked,
-                    context: params.context,
-                    work_done_progress_params: Default::default(),
-                    partial_result_params: Default::default(),
-                })
-                .await
-                .ok()
-                .flatten()
-        }
-        None => None,
-    };
-    workspace.restore(&rust_file);
-
-    let (items, incomplete) = match response? {
+    let response = server(workspace)
+        .await?
+        .completion(CompletionParams {
+            text_document_position: asked,
+            context,
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .await
+        .ok()??;
+    let (items, incomplete) = match response {
         CompletionResponse::Array(items) => (items, false),
         CompletionResponse::List(list) => (list.items, list.is_incomplete),
     };
-    let template = Lines::new(&text, workspace.encoding());
-    // An edit around the cursor in the probe is the same text around the cursor in the
-    // template: the identifier being typed.
+    let template = Lines::new(text, workspace.encoding());
     let move_range = |range: lsp_types::Range| -> Option<lsp_types::Range> {
         let start = lines.offset(range.start)?;
         let end = lines.offset(range.end)?;
@@ -430,7 +580,7 @@ async fn completion(
         let to = offset + (end - cursor);
         (to <= text.len()).then(|| template.range(&(from..to)))
     };
-    let items: Vec<CompletionItem> = items
+    let items = items
         .into_iter()
         .filter_map(|mut item| {
             item.text_edit = match item.text_edit.take() {
@@ -452,10 +602,7 @@ async fn completion(
             Some(item)
         })
         .collect();
-    Some(CompletionResponse::List(CompletionList {
-        is_incomplete: incomplete,
-        items,
-    }))
+    Some((items, incomplete))
 }
 
 /// A range with `removed` cut out of the text it refers to.

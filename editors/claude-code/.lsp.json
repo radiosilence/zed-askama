@@ -1,0 +1,14 @@
+{
+  "askama-analyzer": {
+    "command": "askama-analyzer",
+    "extensionToLanguage": {
+      ".askama": "askama",
+      ".rinja": "askama",
+      ".html": "html",
+      ".htm": "html",
+      ".txt": "plaintext",
+      ".md": "plaintext"
+    },
+    "startupTimeout": 120000
+  }
+}

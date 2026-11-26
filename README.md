@@ -28,6 +28,16 @@ Without it, a template still gets completion, hover, definitions, references, re
 
 `askama-analyzer fmt [--check] [PATH...]` formats templates, the files given or every file under a `templates` directory, changing only the spacing inside tags: text outside them is what askama renders, so it is never touched.
 
+## In Claude Code
+
+`editors/claude-code` is a Claude Code plugin that gives Claude Code's LSP tool `askama-analyzer`. After each edit to a template, Claude sees askama's and rust-analyzer's errors in it, and it can ask for definitions, references and types there. With `askama-analyzer` and `rust-analyzer` on the `PATH` of the shell that starts `claude`:
+
+```
+/plugin install askama --marketplace radiosilence/zed-askama
+```
+
+`askama-analyzer` comes from this repository's releases, or `cargo install --locked --git https://github.com/radiosilence/zed-askama askama-analyzer`. The plugin attaches to `.html`, `.htm`, `.txt` and `.md` files as well as `.askama`, since that is how templates are named; in a file no template struct reads, the server does nothing. It leaves `.rs` files to rust-analyzer.
+
 ## How it is put together
 
 | Path | What |
