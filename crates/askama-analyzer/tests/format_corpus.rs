@@ -93,7 +93,19 @@ fn inline_sources(text: &str) -> Vec<String> {
 
 /// Formats each named source, returning how many formatted, how many changed and how many
 /// askama rejects, and failing the test on any other error.
+/// askama's suite holds templates nested deep enough to test its parser's recursion limit, and
+/// the parser recurses on the stack, so the check runs on a thread with room for them; a test
+/// thread's default stack overflows on Linux.
 fn check(sources: Vec<(String, String)>) -> (usize, usize, usize) {
+    std::thread::Builder::new()
+        .stack_size(256 * 1024 * 1024)
+        .spawn(move || check_on_this_thread(sources))
+        .expect("the checking thread starts")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+}
+
+fn check_on_this_thread(sources: Vec<(String, String)>) -> (usize, usize, usize) {
     let syntax = Syntax::default();
     let (mut formatted, mut changed, mut rejected) = (0, 0, 0);
     let mut failures = Vec::new();

@@ -156,10 +156,13 @@ struct ServerStatusParams {
     message: Option<String>,
 }
 
+/// Each document's latest diagnostics, with the version they are for.
+type Published = HashMap<Url, (Option<i32>, Vec<Diagnostic>)>;
+
 /// What rust-analyzer tells the session between requests.
 struct Heard {
     /// The latest diagnostics for each document, with the version they are for.
-    diagnostics: Mutex<HashMap<Url, (Option<i32>, Vec<Diagnostic>)>>,
+    diagnostics: Mutex<Published>,
     quiescent: watch::Sender<bool>,
     /// What rust-analyzer said was wrong when it last reported itself unhealthy.
     trouble: Mutex<Option<String>>,
@@ -419,7 +422,6 @@ fn capabilities(encoding: Encoding) -> ClientCapabilities {
             ..TextDocumentClientCapabilities::default()
         }),
         experimental: Some(json!({ "serverStatusNotification": true })),
-        ..ClientCapabilities::default()
     }
 }
 

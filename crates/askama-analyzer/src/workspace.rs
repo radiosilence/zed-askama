@@ -38,7 +38,8 @@ struct Sent {
 enum Rust {
     /// Not started; it starts when this workspace's templates are first needed.
     Idle,
-    Running(Session),
+    /// Boxed: a session is far larger than the other states.
+    Running(Box<Session>),
     /// It could not start; templates get askama's own errors. Retried after a reload.
     Failed,
 }
@@ -85,7 +86,7 @@ impl Workspace {
         {
             Ok(session) => {
                 tracing::info!(root = %self.analysis.root().display(), "rust-analyzer started");
-                self.rust = Rust::Running(session);
+                self.rust = Rust::Running(Box::new(session));
                 self.sent.clear();
                 None
             }
