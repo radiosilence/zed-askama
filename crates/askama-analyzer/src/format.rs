@@ -407,7 +407,9 @@ fn tokenize(body: &str) -> Option<Vec<Token<'_>>> {
                 .find(|ch: char| !(ch == '_' || ch.is_alphanumeric()))
                 .unwrap_or(body.len() - i);
             Kind::Word
-        } else if let Some(punct) = PUNCTUATION.iter().find(|p| rest.starts_with(**p)) {
+        } else {
+            // Anything else is not understood, and the tag is left as written.
+            let punct = PUNCTUATION.iter().find(|p| rest.starts_with(**p))?;
             i += punct.len();
             // A Rust macro call: `name!` then a group, kept as written.
             if *punct == "!" && tokens.last().is_some_and(|t| t.kind == Kind::Word) {
@@ -430,8 +432,6 @@ fn tokenize(body: &str) -> Option<Vec<Token<'_>>> {
                 }
             }
             Kind::Punct
-        } else {
-            return None;
         };
         tokens.push(Token {
             kind,
@@ -450,17 +450,15 @@ fn number_end(bytes: &[u8], start: usize) -> usize {
     let mut i = start;
     while i < bytes.len() {
         let b = bytes[i];
-        if b.is_ascii_alphanumeric() || b == b'_' {
-            i += 1;
-        } else if b == b'.' && bytes.get(i + 1).is_some_and(u8::is_ascii_digit) {
-            i += 1;
-        } else if matches!(b, b'+' | b'-')
+        // Digits, a suffix, a fraction (`1.5` but not `1..`), and an exponent's sign.
+        let fraction = b == b'.' && bytes.get(i + 1).is_some_and(u8::is_ascii_digit);
+        let exponent_sign = matches!(b, b'+' | b'-')
             && !hex
             && matches!(bytes[i - 1], b'e' | b'E')
             && bytes
                 .get(i + 1)
-                .is_some_and(|n| n.is_ascii_digit() || *n == b'_')
-        {
+                .is_some_and(|n| n.is_ascii_digit() || *n == b'_');
+        if b.is_ascii_alphanumeric() || b == b'_' || fraction || exponent_sign {
             i += 1;
         } else {
             break;
@@ -558,24 +556,21 @@ fn format_tokens(body: &str) -> Option<String> {
                 {
                     // `::std` after a keyword keeps its space.
                     text == "::" && is_leading_keyword(&previous)
-                } else if matches!(p, "," | ";") {
-                    true
-                } else if text == "{" {
+                } else if matches!(p, "," | ";") || text == "{" {
                     true
                 } else if p == "{" {
                     text != "}"
                 } else if text == "}" {
                     true
-                } else if text == ":" {
-                    false
-                } else if opens_generics
+                } else if text == ":"
+                    || opens_generics
                     || closes_generics
                     || (generic_close && matches!(text, "(" | "::"))
+                    || (p == "<" && generics > 0)
+                    || matches!(text, ".." | "..=")
+                    || matches!(p, ".." | "..=")
                 {
-                    false
-                } else if p == "<" && generics > 0 {
-                    false
-                } else if matches!(text, ".." | "..=") || matches!(p, ".." | "..=") {
+                    // Tight: a type or field's colon, generics, ranges.
                     false
                 } else if text == "|" || p == "|" {
                     tag == Some("when") && depth == 0
