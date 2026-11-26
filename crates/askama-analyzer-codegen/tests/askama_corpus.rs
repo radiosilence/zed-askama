@@ -233,10 +233,9 @@ fn tag_names(text: &str) -> Vec<Range<usize>> {
         if text[tag_start..i.min(text.len())]
             .trim_start_matches(['{', '%', '-', '+', '~', ' '])
             .starts_with("raw")
+            && let Some(end) = text[i..].find("endraw")
         {
-            if let Some(end) = text[i..].find("endraw") {
-                i += end;
-            }
+            i += end;
         }
         i += 2;
     }
@@ -258,6 +257,9 @@ struct Coverage {
     misses: Vec<String>,
 }
 
+/// A range of template text: in a template file, or (`None`) in the item's inline source.
+type Place = (Option<Arc<Path>>, Range<usize>);
+
 /// Checks one item's output; returns its failures.
 fn check_item(
     key: &str,
@@ -277,7 +279,7 @@ fn check_item(
     let mut mapped: HashMap<Option<Arc<Path>>, Vec<Range<usize>>> = HashMap::new();
     // Each identifier range of template text that tokens map to, and whether one of them is
     // that identifier.
-    let mut names: HashMap<(Option<Arc<Path>>, Range<usize>), (String, bool)> = HashMap::new();
+    let mut names: HashMap<Place, (String, bool)> = HashMap::new();
     let inline = inline_source(item_text).and_then(|source| {
         item_text
             .find(source)
@@ -285,8 +287,7 @@ fn check_item(
     });
     // The names written in tags, where the check below applies: askama also maps tokens to
     // template text and to keywords, which name nothing.
-    let mut tag_name_ranges: std::collections::HashSet<(Option<Arc<Path>>, Range<usize>)> =
-        std::collections::HashSet::new();
+    let mut tag_name_ranges: std::collections::HashSet<Place> = std::collections::HashSet::new();
     for path in &generated.templates {
         if let Some(text) = files.get(&**path) {
             tag_name_ranges.extend(
@@ -373,10 +374,10 @@ fn check_item(
             count(text, 0, mapped.get(&Some(Arc::clone(path))));
         }
     }
-    if let Some(source) = inline_source(item_text) {
-        if let Some(offset) = item_text.find(source) {
-            count(source, offset, mapped.get(&None));
-        }
+    if let Some(source) = inline_source(item_text)
+        && let Some(offset) = item_text.find(source)
+    {
+        count(source, offset, mapped.get(&None));
     }
 }
 
@@ -494,7 +495,7 @@ fn run() {
     );
 
     let total = started.elapsed();
-    outcomes.sort_by(|a, b| b.elapsed.cmp(&a.elapsed));
+    outcomes.sort_by_key(|outcome| std::cmp::Reverse(outcome.elapsed));
     let share = coverage.mapped as f64 / coverage.names.max(1) as f64;
     eprintln!(
         "generated {} items from {} files in {:.2?}; {} of {} template names mapped ({:.1}%)",
