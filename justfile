@@ -1,8 +1,9 @@
 # zed-askama: Askama support for Zed, backed by rust-analyzer
 
-# Everything CI checks short of the audit: formatting, clippy with warnings as
-# errors, the tests, the vendored generator, the changelog and the workflows.
-check: grammar
+# Everything CI checks short of the audit and the release builds: formatting,
+# clippy with warnings as errors, the tests, the extension, the vendored
+# generator, the changelog, the version files and the workflows.
+check: grammar extension
     cargo fmt --all -- --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
     cargo test --workspace --locked
@@ -10,6 +11,7 @@ check: grammar
     python3 scripts/vendor-askama-testing.py --check
     python3 -m unittest scripts/test_changelog.py
     python3 scripts/changelog.py --lint
+    python3 scripts/versions.py
     actionlint
 
 # The grammar as Zed builds it: the generated parser is what grammar.js makes,
@@ -27,6 +29,25 @@ fast:
 # Format the Rust code.
 fmt:
     cargo fmt --all
+
+# The Zed extension as Zed's builder compiles it, with its lints and unit
+# tests. A workspace of its own, so the root's commands do not reach it.
+extension:
+    cd editors/zed && cargo fmt -- --check
+    cd editors/zed && cargo clippy --locked --all-targets -- -D warnings
+    cd editors/zed && cargo clippy --locked --target wasm32-wasip2 -- -D warnings
+    cd editors/zed && cargo test --locked
+    cd editors/zed && cargo build --locked --release --target wasm32-wasip2
+
+# Fail unless every version file states the one version the repository ships at.
+versions:
+    python3 scripts/versions.py
+
+# Open the release PR: `just release patch|minor|major`, or an exact version.
+# Merging it publishes the GitHub release and opens the registry bump as a
+# draft; tags are never pushed by hand (docs/releasing.md).
+release version *args:
+    scripts/release.sh {{version}} {{args}}
 
 # Install the git hooks.
 hooks:
