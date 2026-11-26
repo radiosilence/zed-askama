@@ -1,0 +1,2 @@
+# Inputs where askama_parser 0.16.1 and this grammar disagree, one per line:
+# the path under test/askama-corpus, then why the grammar differs.
