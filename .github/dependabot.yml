@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      patch-and-minor:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Pinned exactly to the vendored askama_derive, which requires this
+      # parser. A new askama release is taken by re-vendoring
+      # (`just vendor-askama`), which moves both together.
+      - dependency-name: askama_parser
+
+  # Every action here is SHA-pinned, which is correct and also means they never
+  # update themselves.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

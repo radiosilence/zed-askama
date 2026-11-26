@@ -1,0 +1,91 @@
+================================================================================
+Macro definitions take parameters with types and defaults
+================================================================================
+{% macro button(label, kind: &str, size = 2,) %}{{ label }}{% endmacro button %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (macro_definition
+    (macro_tag
+      (identifier)
+      (parameters
+        (parameter
+          (identifier))
+        (parameter
+          (identifier)
+          (reference_type
+            (type_identifier)))
+        (parameter
+          (identifier)
+          (integer_literal))))
+    (expression_tag
+      (identifier))
+    (endmacro_tag
+      (identifier)))
+  (content))
+
+================================================================================
+Macro definitions may omit the parameter list
+================================================================================
+{% macro m %}x{% endmacro %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (macro_definition
+    (macro_tag
+      (identifier))
+    (content)
+    (endmacro_tag))
+  (content))
+
+================================================================================
+Call blocks take scoped names, arguments and caller parameters
+================================================================================
+{% call(item) m::list(items, ordered = true) %}{{ item }}{% endcall %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (call_block
+    (call_tag
+      (caller_parameters
+        (identifier))
+      (scoped_identifier
+        (identifier)
+        (identifier))
+      (arguments
+        (identifier)
+        (named_argument
+          (identifier)
+          (boolean_literal))))
+    (expression_tag
+      (identifier))
+    (endcall_tag))
+  (content))
+
+================================================================================
+Call blocks may call caller
+================================================================================
+{% macro m() %}{{ caller(1) }}{% endmacro %}{% call m() %}{% endcall %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (macro_definition
+    (macro_tag
+      (identifier)
+      (parameters))
+    (expression_tag
+      (call_expression
+        (identifier)
+        (arguments
+          (integer_literal))))
+    (endmacro_tag))
+  (call_block
+    (call_tag
+      (identifier)
+      (arguments))
+    (endcall_tag))
+  (content))

@@ -1,0 +1,15 @@
+# Askama templates whose content is plain text, with nothing injected.
+name = "Askama Text"
+grammar = "askama"
+block_comment = ["{# ", " #}"]
+autoclose_before = ";:.,=}])>\"'"
+brackets = [
+    { start = "{", end = "}", close = true, newline = true },
+    { start = "[", end = "]", close = true, newline = true },
+    { start = "(", end = ")", close = true, newline = true },
+    { start = "{%", end = " %", close = true, newline = false, not_in = ["comment", "string"] },
+    { start = "{{", end = " }", close = true, newline = false, not_in = ["comment", "string"] },
+    { start = "{#", end = " #", close = true, newline = false, not_in = ["comment", "string"] },
+    { start = "\"", end = "\"", close = true, newline = false, not_in = ["comment", "string"] },
+]
+path_suffixes = ["txt.askama", "txt.rinja", "yml.askama", "yml.rinja"]

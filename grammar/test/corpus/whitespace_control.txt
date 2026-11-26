@@ -1,0 +1,62 @@
+================================================================================
+Expression delimiters take every whitespace marker
+================================================================================
+{{- a -}}{{+ b +}}{{~ c ~}}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (identifier))
+  (expression_tag
+    (identifier))
+  (expression_tag
+    (identifier))
+  (content))
+
+================================================================================
+Block delimiters take every whitespace marker
+================================================================================
+{%- if a -%}{%+ else +%}{%~ endif ~%}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (else_clause
+      (else_tag))
+    (endif_tag))
+  (content))
+
+================================================================================
+A minus right after the opening delimiter is whitespace control, not negation
+================================================================================
+{{-x}}{{ -x }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (identifier))
+  (expression_tag
+    (unary_expression
+      (identifier)))
+  (content))
+
+================================================================================
+A minus before the closing delimiter is whitespace control, not subtraction
+================================================================================
+{{ a -}}{{ a - b }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (identifier))
+  (expression_tag
+    (binary_expression
+      (identifier)
+      (identifier)))
+  (content))

@@ -1,0 +1,39 @@
+id = "askama"
+name = "Askama"
+description = "Askama template support: highlighting, brackets, indentation, outline and snippets."
+version = "0.1.0"
+schema_version = 1
+authors = ["James Cleveland <jc@blit.cc>"]
+repository = "https://github.com/radiosilence/zed-askama"
+
+languages = [
+    "languages/askama-html",
+    "languages/askama-markdown",
+    "languages/askama-text",
+]
+
+snippets = [
+    "snippets/askama html.json",
+    "snippets/askama markdown.json",
+    "snippets/askama text.json",
+]
+
+# askama-analyzer answers in templates Zed opened as HTML, and in Rust files
+# for inline `source = "..."` templates and references from Rust; it idles in a
+# workspace with no askama dependency.
+[language_servers.askama-analyzer]
+name = "askama-analyzer"
+languages = ["Askama HTML", "Askama Markdown", "Askama Text", "HTML", "Rust"]
+
+[language_servers.askama-analyzer.language_ids]
+"Askama HTML" = "askama"
+"Askama Markdown" = "askama"
+"Askama Text" = "askama"
+"HTML" = "html"
+"Rust" = "rust"
+
+# `rev` must name a pushed commit whose grammar/ matches grammar/ at HEAD.
+[grammars.askama]
+repository = "https://github.com/radiosilence/zed-askama"
+rev = "5835de815db9687bcce15fbcc49882b7377c9e3b"
+path = "grammar"

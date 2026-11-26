@@ -1,0 +1,11 @@
+error: unexpected character `%`
+ --> <source attribute>:1:28
+       "%}\nHELLO\n{{v}}\n{%- endfilter %}"
+ --> tests/ui/filter_block_ws.rs:4:21
+  |
+4 |   #[template(source = "{% filter lower|indent(2) - %}
+  |  _____________________^
+5 | | HELLO
+6 | | {{v}}
+7 | | {%- endfilter %}", ext = "html")]
+  | |_________________^

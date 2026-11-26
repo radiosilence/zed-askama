@@ -1,0 +1,118 @@
+================================================================================
+An unclosed if is closed by a missing endif and its body still parses
+================================================================================
+{% if a %}
+<p>{{ b }}</p>
+{% for x in y %}{{ x }}{% endfor %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (content)
+    (expression_tag
+      (identifier))
+    (content)
+    (for_block
+      (for_tag
+        (identifier)
+        (identifier))
+      (expression_tag
+        (identifier))
+      (endfor_tag))
+    (content)
+    (MISSING endif_tag)))
+
+================================================================================
+An unclosed for inside an if is closed by a missing endfor
+================================================================================
+{% if a %}{% for x in y %}{{ x }}{% endif %}
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (for_block
+      (for_tag
+        (identifier)
+        (identifier))
+      (expression_tag
+        (identifier))
+      (MISSING endfor_tag))
+    (endif_tag)))
+
+================================================================================
+An unclosed expression ends at the first token that cannot continue it
+================================================================================
+{{ a 
+<p>text</p>
+
+--------------------------------------------------------------------------------
+
+(template
+  (ERROR
+    (binary_expression
+      (binary_expression
+        (identifier)
+        (identifier))
+      (identifier)))
+  (content))
+
+================================================================================
+A stray closing tag is an error and the rest still parses
+================================================================================
+{% endif %}<p>{{ a }}</p>{% if b %}c{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (ERROR)
+  (content)
+  (expression_tag
+    (identifier))
+  (content)
+  (if_block
+    (if_tag
+      (identifier))
+    (content)
+    (endif_tag))
+  (content))
+
+================================================================================
+A mismatched closing tag is an error inside its block
+================================================================================
+{% if a %}{% for x in y %}{% endif %}{% endfor %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (for_block
+      (for_tag
+        (identifier)
+        (identifier))
+      (ERROR)
+      (content)
+      (endfor_tag))
+    (content)
+    (MISSING endif_tag)))
+
+================================================================================
+An unclosed comment is an error and the rest still parses
+================================================================================
+{# never closed
+{{ a }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (ERROR)
+  (content)
+  (expression_tag
+    (identifier))
+  (content))

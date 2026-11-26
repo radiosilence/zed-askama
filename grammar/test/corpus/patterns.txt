@@ -1,0 +1,141 @@
+================================================================================
+Let destructures tuples and slices
+================================================================================
+{% let (a, b) = pair %}{% let [first, .., last] = xs %}{% let [head, rest @ ..] = xs %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (let_statement
+    (tuple_pattern
+      (identifier)
+      (identifier))
+    (identifier))
+  (let_statement
+    (slice_pattern
+      (identifier)
+      (remaining_field_pattern)
+      (identifier))
+    (identifier))
+  (let_statement
+    (slice_pattern
+      (identifier)
+      (captured_pattern
+        (identifier)
+        (remaining_field_pattern)))
+    (identifier))
+  (content))
+
+================================================================================
+When matches tuple struct patterns with and without with
+================================================================================
+{% match v %}{% when Some with (x) %}{% when Ok(y) %}{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (when_clause
+      (when_tag
+        (tuple_struct_pattern
+          (identifier)
+          (identifier))))
+    (when_clause
+      (when_tag
+        (tuple_struct_pattern
+          (identifier)
+          (identifier))))
+    (endmatch_tag))
+  (content))
+
+================================================================================
+When matches struct patterns
+================================================================================
+{% match b %}{% when Body::Refile with { change, into, moves } %}{% when Point { x: 0, .. } %}{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (when_clause
+      (when_tag
+        (struct_pattern
+          (scoped_identifier
+            (identifier)
+            (identifier))
+          (field_pattern
+            (shorthand_field_identifier))
+          (field_pattern
+            (shorthand_field_identifier))
+          (field_pattern
+            (shorthand_field_identifier)))))
+    (when_clause
+      (when_tag
+        (struct_pattern
+          (identifier)
+          (field_pattern
+            (field_identifier)
+            (integer_literal))
+          (remaining_field_pattern))))
+    (endmatch_tag))
+  (content))
+
+================================================================================
+When alternatives use the bar and or
+================================================================================
+{% match n %}{% when 1 | 2 %}{% when 3 or 4 %}{% when -5 %}{% when _ %}{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (when_clause
+      (when_tag
+        (integer_literal)
+        (integer_literal)))
+    (when_clause
+      (when_tag
+        (or_pattern
+          (integer_literal)
+          (integer_literal))))
+    (when_clause
+      (when_tag
+        (negative_literal
+          (integer_literal))))
+    (when_clause
+      (when_tag))
+    (endmatch_tag))
+  (content))
+
+================================================================================
+Literal patterns cover strings, characters and booleans
+================================================================================
+{% match x %}{% when "a" %}{% when 'b' %}{% when true %}{% when 1.5 %}{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (when_clause
+      (when_tag
+        (string_literal
+          (string_content))))
+    (when_clause
+      (when_tag
+        (char_literal)))
+    (when_clause
+      (when_tag
+        (boolean_literal)))
+    (when_clause
+      (when_tag
+        (float_literal)))
+    (endmatch_tag))
+  (content))

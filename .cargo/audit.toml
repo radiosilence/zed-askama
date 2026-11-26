@@ -1,0 +1,5 @@
+# Advisories acknowledged so that `cargo audit` still fails on anything new.
+# Each entry says why it does not reach this build and when to remove it, since
+# an ignore that outlives its cause hides a live advisory.
+[advisories]
+ignore = []

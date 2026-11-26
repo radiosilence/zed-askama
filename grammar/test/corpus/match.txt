@@ -1,0 +1,88 @@
+================================================================================
+Match takes when arms and an else arm
+================================================================================
+{% match x %}
+  {% when Some(y) %}{{ y }}
+  {% else %}none
+{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (when_clause
+      (when_tag
+        (tuple_struct_pattern
+          (identifier)
+          (identifier)))
+      (expression_tag
+        (identifier))
+      (content))
+    (else_clause
+      (else_tag)
+      (content))
+    (endmatch_tag))
+  (content))
+
+================================================================================
+Comments may precede the first arm
+================================================================================
+{% match x %} {# note #} {% when _ %}{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (comment
+      (comment_body))
+    (when_clause
+      (when_tag))
+    (endmatch_tag))
+  (content))
+
+================================================================================
+Endwhen closes an arm
+================================================================================
+{% match x %}{% when A %}a{% endwhen %} {# c #} {% when B %}b{% endwhen %}{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (when_clause
+      (when_tag
+        (identifier))
+      (content)
+      (endwhen_tag)
+      (comment
+        (comment_body)))
+    (when_clause
+      (when_tag
+        (identifier))
+      (content)
+      (endwhen_tag))
+    (endmatch_tag))
+  (content))
+
+================================================================================
+Match may have only an else arm
+================================================================================
+{% match x %}{% else %}y{% endmatch %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (match_block
+    (match_tag
+      (identifier))
+    (else_clause
+      (else_tag)
+      (content))
+    (endmatch_tag))
+  (content))

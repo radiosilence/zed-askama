@@ -1,0 +1,22 @@
+[package]
+name = "askama-zed"
+version = "0.1.0"
+edition = "2024"
+description = "The Zed extension for Askama templates"
+license = "MIT"
+repository = "https://github.com/radiosilence/zed-askama"
+publish = false
+
+# Zed's builder runs cargo here with a target directory of its own, and the
+# registry may package this directory alone, so it is a workspace of its own
+# with its own lockfile.
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+zed_extension_api = "0.7.0"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

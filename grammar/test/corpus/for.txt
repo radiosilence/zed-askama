@@ -1,0 +1,83 @@
+================================================================================
+For iterates with an else branch
+================================================================================
+{% for item in items %}{{ loop.index }}{{ item }}{% else %}none{% endfor %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (for_block
+    (for_tag
+      (identifier)
+      (identifier))
+    (expression_tag
+      (field_expression
+        (identifier)
+        (field_identifier)))
+    (expression_tag
+      (identifier))
+    (else_clause
+      (else_tag)
+      (content))
+    (endfor_tag))
+  (content))
+
+================================================================================
+For takes a filter condition
+================================================================================
+{% for x in xs if x > 0 %}{{ x }}{% endfor %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (for_block
+    (for_tag
+      (identifier)
+      (identifier)
+      (binary_expression
+        (identifier)
+        (integer_literal)))
+    (expression_tag
+      (identifier))
+    (endfor_tag))
+  (content))
+
+================================================================================
+For destructures its pattern
+================================================================================
+{% for (k, v) in map %}{% endfor %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (for_block
+    (for_tag
+      (tuple_pattern
+        (identifier)
+        (identifier))
+      (identifier))
+    (endfor_tag))
+  (content))
+
+================================================================================
+Break and continue are statements
+================================================================================
+{% for x in xs %}{% if x %}{% break %}{% else %}{% continue %}{% endif %}{% endfor %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (for_block
+    (for_tag
+      (identifier)
+      (identifier))
+    (if_block
+      (if_tag
+        (identifier))
+      (break_statement)
+      (else_clause
+        (else_tag)
+        (continue_statement))
+      (endif_tag))
+    (endfor_tag))
+  (content))
