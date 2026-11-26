@@ -8,7 +8,7 @@ Askama compiles a template into Rust inside `#[derive(Template)]`. rust-analyzer
 
 ## Trying it in Zed
 
-Until it is in Zed's extension registry, install it as a dev extension: in Zed, open the command palette, run **zed: install dev extension**, and choose this repository's `editors/zed` directory.
+Until it is in Zed's extension registry, install it as a dev extension: in Zed, open the command palette, run **zed: install dev extension**, and choose this repository's directory.
 
 Files ending `.askama` or `.rinja` open as Askama HTML, `.md.askama` as Askama Markdown and `.txt.askama` as Askama Text.
 
@@ -31,7 +31,7 @@ The extension downloads the newest askama-analyzer release and keeps it up to da
 | Path | What |
 |---|---|
 | `grammar/` | The tree-sitter grammar, its corpus tests, and a differential test holding it to askama's own parser |
-| `editors/zed/` | The Zed extension: three languages (HTML, Markdown and plain text content), their queries and snippets, and the Rust that finds or downloads askama-analyzer and rust-analyzer |
+| `extension.toml`, `languages/`, `snippets/`, `src/` | The Zed extension: three languages (HTML, Markdown and plain text content), their queries and snippets, and the Rust that finds or downloads askama-analyzer and rust-analyzer |
 | `vendor/askama-testing` | askama's own test suite at the pinned release, which the grammar is tested against |
 | `docs/releasing.md` | How a release goes, the secrets it needs, and the first submission to Zed's registry |
 

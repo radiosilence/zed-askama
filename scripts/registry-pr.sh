@@ -67,6 +67,9 @@ entry = re.compile(r'(^\[askama\]\n(?:(?!^\[).*\n)*?^version = ")[^"]*(")', re.M
 text, count = entry.subn(lambda m: m.group(1) + version + m.group(2), text, count=1)
 if count != 1:
     sys.exit("extensions.toml's [askama] entry has no version")
+# The extension sits at the repository's root, so the entry names no `path`.
+path = re.compile(r'(^\[askama\]\n(?:(?!^\[).*\n)*?)^path = "[^"]*"\n', re.MULTILINE)
+text = path.sub(lambda m: m.group(1), text, count=1)
 open("extensions.toml", "w").write(text)
 PY
 git add extensions.toml

@@ -5,9 +5,12 @@ The grammar and the Zed extension release together, so every file
 that states a version must state the same one:
 
 - Cargo.toml, `[workspace.package] version` (the crates inherit it);
-- editors/zed/Cargo.toml, the extension crate, a workspace of its own;
-- editors/zed/extension.toml, the version Zed's registry shows;
-- grammar/tree-sitter.json, `metadata.version`.
+- extension.toml, the version Zed's registry shows.
+
+grammar/tree-sitter.json's `metadata.version` is left alone: `tree-sitter
+generate` writes it into grammar/src/parser.c, so moving it would change the
+generated parser, which the extension's grammar `rev` (a commit on main from
+before the release) must match.
 
 The lockfiles' entries for these crates follow the manifests; `cargo update
 --workspace` (run by scripts/release.sh) writes them, and `cargo build
@@ -20,7 +23,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import re
 import sys
 from pathlib import Path
@@ -51,15 +53,12 @@ def extension_manifest_version(path: Path) -> tuple[str, re.Pattern[str]]:
 
 TOML_FILES = {
     "Cargo.toml": lambda path: toml_version(path, "workspace.package"),
-    "editors/zed/Cargo.toml": lambda path: toml_version(path, "package"),
-    "editors/zed/extension.toml": extension_manifest_version,
+    "extension.toml": extension_manifest_version,
 }
-TREE_SITTER = "grammar/tree-sitter.json"
 
 
 def versions() -> dict[str, str]:
     found = {name: read(ROOT / name)[0] for name, read in TOML_FILES.items()}
-    found[TREE_SITTER] = json.loads((ROOT / TREE_SITTER).read_text())["metadata"]["version"]
     return found
 
 
@@ -68,15 +67,6 @@ def set_version(version: str) -> None:
         path = ROOT / name
         _, pattern = read(path)
         path.write_text(pattern.sub(lambda m: m.group(1) + version + m.group(3), path.read_text(), count=1))
-    path = ROOT / TREE_SITTER
-    text = path.read_text()
-    # Edited in place rather than re-serialised, so the file keeps its layout.
-    text, count = re.subn(
-        r'("metadata": \{\s*"version": ")[^"]*(")', lambda m: m.group(1) + version + m.group(2), text, count=1
-    )
-    if count != 1:
-        sys.exit(f"{TREE_SITTER} has no metadata.version to set")
-    path.write_text(text)
 
 
 def main() -> None:

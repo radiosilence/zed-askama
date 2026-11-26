@@ -146,14 +146,15 @@ jobs:
           elif { [ "$EVENT" = push ] || [ "$EVENT" = pull_request ]; } && [ -n "$base" ] && files=$(git diff --name-only "$base" HEAD); then
             echo "changes since $(git rev-parse --short "$base"):"
             printf '%s\n' "$files" | sed 's/^/  /'
-            # Anything cargo compiles or that decides how: the grammar's
-            # crate, whose differential test reads askama's vendored test suite.
-            touches '^grammar/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
+            # Anything cargo compiles or that decides how: the extension, and
+            # the grammar's crate, whose differential test reads askama's
+            # vendored test suite.
+            touches '^src/|^grammar/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
             # The grammar, the Zed extension's queries over it, and the
             # askama test suite the grammar is held to.
-            touches '^grammar/|^editors/zed/|^vendor/askama-testing/|^scripts/vendor-askama-testing\.py$|^mise\.toml$|^\.github/' || grammar=false
+            touches '^grammar/|^languages/|^extension\.toml$|^vendor/askama-testing/|^scripts/vendor-askama-testing\.py$|^mise\.toml$|^\.github/' || grammar=false
             # The extension's Rust code, built as Zed builds it.
-            touches '^editors/zed/|^\.github/' || extension=false
+            touches '^src/|^languages/|^snippets/|^extension\.toml$|^Cargo\.(toml|lock)$|^\.github/' || extension=false
             touches '^\.github/(workflows|actions)/' || workflows=false
             # A new advisory can land on any day against an unchanged
             # lockfile, so main audits every push; a pull request only when it
@@ -241,57 +242,45 @@ jobs:
       - name: Queries compile against the grammar
         working-directory: grammar
         run: |
-          for query in ../editors/zed/languages/*/*.scm; do
+          for query in ../languages/*/*.scm; do
             tree-sitter query "$query" ../vendor/askama-testing/templates/attr.html > /dev/null
           done
       - name: Pinned grammar matches
         run: |
-          rev=$(sed -n 's/^rev = "\(.*\)"/\1/p' editors/zed/extension.toml)
+          rev=$(sed -n 's/^rev = "\(.*\)"/\1/p' extension.toml)
           if ! git diff --quiet "$rev" HEAD -- grammar/src; then
-            echo "::error::editors/zed/extension.toml pins grammar rev $rev, whose grammar/src differs from this commit's; pin a pushed commit that holds this grammar"
+            echo "::error::extension.toml pins grammar rev $rev, whose grammar/src differs from this commit's; pin a pushed commit that holds this grammar"
             exit 1
           fi
       - name: Vendored askama test suite is askama's
         run: python3 scripts/vendor-askama-testing.py --check
 
-  # The Zed extension's Rust code as Zed's builder compiles it: for
-  # wasm32-wasip2, in release, inside editors/zed, which is a workspace of its
-  # own with its own lockfile. Clippy covers the wasm build and the host build
-  # its unit tests run on; the tests cover what does not need Zed (platforms to
-  # archive names, how the options are merged).
+  # The Zed extension as Zed's builder compiles it: the root package alone,
+  # for wasm32-wasip2, in release. Its host build, clippy and unit tests (what
+  # does not need Zed: platforms to archive names, how the options are merged)
+  # run in Check with the rest of the workspace.
   extension:
     name: Extension
     runs-on: ubuntu-24.04
     needs: changes
     if: needs.changes.outputs.extension == 'true'
     timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: editors/zed
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # v1
         with:
           toolchain: stable
           targets: wasm32-wasip2
-          components: rustfmt, clippy
+          components: clippy
       - id: cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
-          workspaces: editors/zed
           shared-key: extension
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
-      - name: Check formatting
-        run: cargo fmt -- --check
-      - name: Clippy
+      - name: Clippy for wasm32-wasip2
         if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
-        run: |
-          cargo clippy --locked --all-targets -- -D warnings
-          cargo clippy --locked --target wasm32-wasip2 -- -D warnings
-      - name: Run tests
-        if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
-        run: cargo test --locked
+        run: cargo clippy --locked --target wasm32-wasip2 -- -D warnings
       - name: Build for Zed
         if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
         run: cargo build --locked --release --target wasm32-wasip2

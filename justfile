@@ -18,7 +18,7 @@ check: grammar extension
 grammar:
     cd grammar && tree-sitter generate && git diff --exit-code -- src
     cd grammar && tree-sitter test
-    cd grammar && for query in ../editors/zed/languages/*/*.scm; do tree-sitter query "$query" ../vendor/askama-testing/templates/attr.html > /dev/null; done
+    cd grammar && for query in ../languages/*/*.scm; do tree-sitter query "$query" ../vendor/askama-testing/templates/attr.html > /dev/null; done
 
 # The checks that take seconds: the lockfile matches the manifests, and formatting.
 fast:
@@ -29,14 +29,11 @@ fast:
 fmt:
     cargo fmt
 
-# The Zed extension as Zed's builder compiles it, with its lints and unit
-# tests. A workspace of its own, so the root's commands do not reach it.
+# The Zed extension as Zed's builder compiles it: the root package alone, for
+# wasm32-wasip2, in release. Its host build, lints and unit tests are in `check`.
 extension:
-    cd editors/zed && cargo fmt -- --check
-    cd editors/zed && cargo clippy --locked --all-targets -- -D warnings
-    cd editors/zed && cargo clippy --locked --target wasm32-wasip2 -- -D warnings
-    cd editors/zed && cargo test --locked
-    cd editors/zed && cargo build --locked --release --target wasm32-wasip2
+    cargo clippy --locked --target wasm32-wasip2 -- -D warnings
+    cargo build --locked --release --target wasm32-wasip2
 
 # Fail unless every version file states the one version the repository ships at.
 versions:
