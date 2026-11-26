@@ -18,11 +18,13 @@ Every change is a squash-merged pull request with signed commits. `main` is merg
 
 ## Releasing
 
-Not set up yet; it is step 6 of issue #1. Pull requests to zed-industries/extensions, the first submission included, are opened as drafts and stay drafts until the release has been tried in Zed at the submitted commit. Marking one ready is a person's decision.
+`just release patch|minor|major|X.Y.Z` (or the **Release** workflow) opens a `release-vX.Y.Z` pull request that sets every version file, pins the extension's grammar `rev` to the `origin/main` commit it branches from, and cuts the changelog. Merging it releases: CI builds `askama-analyzer` for six platforms (macOS signed and notarised), publishes the GitHub release with checksums and provenance, and opens the version bump on zed-industries/extensions as a draft. [docs/releasing.md](docs/releasing.md) has the steps, the secrets and the first registry submission, which is made by hand.
+
+Pull requests to zed-industries/extensions, the first submission included, are opened as drafts and stay drafts until the release has been tried in Zed at the submitted commit. Marking one ready is a person's decision.
 
 ## CI/CD
 
-One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only required status. `changes` decides which domains a diff touches (`rust`, `grammar`, `vendor`, `changelog`, `workflows`, `deps`), each an allowlist of paths; a new top-level source directory must be added there.
+One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only required status. `changes` decides which domains a diff touches (`rust`, `grammar`, `extension`, `vendor`, `changelog`, `workflows`, `deps`), each an allowlist of paths; a new top-level source directory must be added there. It also decides whether the run releases: a release pull request (branch `release-v*`) builds every platform without publishing, and a push to `main` that changes the workspace version publishes it once `Checks` has passed. `versions` runs on every run. `release.yml` only opens the release pull request.
 
 ## Check
 
@@ -37,6 +39,9 @@ One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only requir
 - **Every thread that parses with proc-macro2 frees its source map afterwards** (`proc_macro2::extra::invalidate_current_thread_spans`), since `span-locations` keeps every parsed text for the life of the thread. `askama_analyzer_codegen::generate` does this itself.
 - **The extension's grammar `rev` names a pushed commit whose `grammar/src` matches `HEAD`'s.** Zed builds the grammar from that commit, never from the extension's own checkout, so a grammar change is only live once `rev` moves; CI fails while they differ.
 - **`grammar/src` is generated** by `tree-sitter generate` at the version `mise.toml` pins, and committed because Zed compiles it without generating; CI fails when it is stale.
+- **Every version file states one version.** The workspace `Cargo.toml`, `editors/zed/Cargo.toml`, `editors/zed/extension.toml` and `grammar/tree-sitter.json` move together through `scripts/versions.py --set`; CI fails when they disagree.
+- **The release archive names are a contract with the extension.** `server_asset` in `editors/zed/src/lib.rs` downloads `askama-analyzer-<target>.tar.gz` (or `.zip` on Windows) by name; the `build` job in `ci-cd.yml` must produce exactly those.
+- **The extension is a workspace of its own.** `editors/zed` has its own `[workspace]` and `Cargo.lock` and is excluded from the root workspace, because Zed's builder runs cargo inside it and the registry may package it alone; `just extension` checks it.
 - **`vendor/askama-testing` is askama's test suite at the pinned release**, written by `scripts/vendor-askama-testing.py`; the grammar's differential test and the generator's tests read it.
 - **`askama-analyzer-codegen` does no I/O.** Files reach it through its `Files` trait, so unsaved buffers are what askama reads.
 
@@ -45,7 +50,8 @@ One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only requir
 | Path | What |
 |---|---|
 | `grammar/` | The tree-sitter grammar (`grammar.js`, the external scanner in `src/scanner.c`), its corpus, and `tests/askama_corpus.rs`, which holds it to `askama_parser`; `test/divergences.txt` lists what the parser rejects beyond syntax |
-| `editors/zed/` | The Zed extension: `extension.toml`, `languages/askama-{html,markdown,text}` (the Markdown and Text queries are symlinks to the HTML ones) and snippets |
+| `editors/zed/` | The Zed extension: `extension.toml`, `languages/askama-{html,markdown,text}` (the Markdown and Text queries are symlinks to the HTML ones), snippets, and `src/lib.rs`, which finds or downloads `askama-analyzer` and rust-analyzer and passes the user's settings to the server |
+| `scripts/release.sh`, `scripts/versions.py`, `scripts/registry-pr.sh`, `docs/releasing.md` | The release pull request, the one-version check, the registry draft, and how they fit |
 | `vendor/askama-testing`, `scripts/vendor-askama-testing.py` | askama's test suite and the script that vendors it |
 | `crates/askama-analyzer-codegen` | askama's generator run on one item, and the map from each generated token to its template range |
 | `vendor/askama_derive`, `vendor/askama_derive-tooling.patch` | askama's generator with the tooling patch |

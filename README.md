@@ -29,7 +29,8 @@ Files ending `.askama` or `.rinja` open as Askama HTML, `.md.askama` as Askama M
 | Path | What |
 |---|---|
 | `grammar/` | The tree-sitter grammar, its corpus tests, and a differential test holding it to askama's own parser |
-| `editors/zed/` | The Zed extension: three languages (HTML, Markdown and plain text content), their queries and snippets |
+| `editors/zed/` | The Zed extension: three languages (HTML, Markdown and plain text content), their queries and snippets, and the Rust that finds or downloads the server and rust-analyzer |
+| `docs/releasing.md` | How a release goes, the secrets it needs, and the first submission to Zed's registry |
 | `crates/askama-analyzer-codegen` | askama's generator run on one template item, with a map from every generated token to its template range |
 | `vendor/askama_derive` | askama's generator with a small patch for long-running use, described in [ARCHITECTURE.md](ARCHITECTURE.md) |
 | `vendor/askama-testing` | askama's own test suite at the pinned release, which the grammar and the generator are tested against |

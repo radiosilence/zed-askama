@@ -1,0 +1,1 @@
+- **Releases build, sign and publish themselves.** Merging a `just release` pull request builds askama-analyzer for macOS, Linux and Windows on x86_64 and arm64, signs and notarises the macOS builds, publishes them with checksums and provenance attestations as the GitHub release the extension downloads from, and opens the zed-industries/extensions update as a draft.
