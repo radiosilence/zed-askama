@@ -1,0 +1,39 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "askama",
+      "camelcase": "Askama",
+      "title": "Askama",
+      "scope": "source.askama",
+      "path": ".",
+      "file-types": ["askama", "rinja"],
+      "injection-regex": "^(askama|rinja)$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Askama templates for tree-sitter",
+    "authors": [
+      {
+        "name": "James Cleveland",
+        "email": "jc@blit.cc"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/radiosilence/zed-askama"
+    }
+  },
+  "bindings": {
+    "c": false,
+    "go": false,
+    "java": false,
+    "kotlin": false,
+    "node": false,
+    "python": false,
+    "rust": true,
+    "swift": false,
+    "zig": false
+  }
+}
