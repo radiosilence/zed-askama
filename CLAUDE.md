@@ -54,7 +54,8 @@ One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only requir
 | `editors/zed/` | The Zed extension: `extension.toml`, `languages/askama-{html,markdown,text}` (the Markdown and Text queries are symlinks to the HTML ones), snippets, and `src/lib.rs`, which finds or downloads `askama-analyzer` and rust-analyzer and passes the user's settings to the server |
 | `scripts/release.sh`, `scripts/versions.py`, `scripts/registry-pr.sh`, `docs/releasing.md` | The release pull request, the one-version check, the registry draft, and how they fit |
 | `vendor/askama-testing`, `scripts/vendor-askama-testing.py` | askama's test suite and the script that vendors it |
-| `crates/askama-analyzer-codegen` | askama's generator run on one item, and the map from each generated token to its template range |
+| `crates/askama-analyzer-codegen` | askama's generator run on one item, and the map from each generated token to its template range; `tests/askama_corpus.rs` runs it over askama's passing tests, with a floor on how many template names map back |
+| `crates/askama-analyzer/src/format.rs` | The template formatter (`askama-analyzer fmt`, and the LSP's formatting): spacing inside tags only, checked against `askama_parser`'s tree; `tests/format_corpus.rs` runs it over askama's suite and, with `ASKAMA_GRAMMAR_TEMPLATE_DIRS`, real projects |
 | `vendor/askama_derive`, `vendor/askama_derive-tooling.patch` | askama's generator with the tooling patch |
 | `scripts/vendor-askama.py` | Downloads, verifies and patches the vendored generator |
 | `ARCHITECTURE.md` | How the pieces fit and the rules they keep |
