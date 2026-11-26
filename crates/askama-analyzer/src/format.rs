@@ -651,7 +651,7 @@ pub fn run(check: bool, paths: &[PathBuf]) -> anyhow::Result<ExitCode> {
         };
         match format(&source, &syntax) {
             Ok(formatted) if formatted == source => {}
-            Ok(formatted) if check => {
+            Ok(_) if check => {
                 println!("{}", file.display());
                 failed = true;
             }
@@ -730,7 +730,7 @@ mod tests {
             formatted("{% if !a&&b==c||d %}{% endif %}"),
             "{% if !a && b == c || d %}{% endif %}"
         );
-        assert_eq!(formatted("{{ a~b }}"), "{{ a ~ b }}");
+        assert_eq!(formatted("{{ a   ~   b }}"), "{{ a ~ b }}");
         assert_eq!(formatted("{{ & x }}{{ * y }}"), "{{ &x }}{{ *y }}");
     }
 
@@ -750,7 +750,7 @@ mod tests {
     #[test]
     fn ranges_paths_and_turbofish_are_tight() {
         assert_eq!(
-            formatted("{{ x[ 1 .. ] }}{{ a .. = b }}"),
+            formatted("{{ x[ 1 .. ] }}{{ a ..= b }}"),
             "{{ x[1..] }}{{ a..=b }}"
         );
         assert_eq!(

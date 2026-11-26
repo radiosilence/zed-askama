@@ -271,6 +271,22 @@ fn check_item(
             .find(source)
             .map(|start| start..start + source.len())
     });
+    // The names written in tags, where the check below applies: askama also maps tokens to
+    // template text and to keywords, which name nothing.
+    let mut tag_name_ranges: std::collections::HashSet<(Option<Arc<Path>>, Range<usize>)> =
+        std::collections::HashSet::new();
+    for path in &generated.templates {
+        if let Some(text) = files.get(&**path) {
+            tag_name_ranges.extend(tag_names(text).into_iter().map(|r| (Some(Arc::clone(path)), r)));
+        }
+    }
+    if let (Some(source), Some(literal)) = (inline_source(item_text), inline.as_ref()) {
+        tag_name_ranges.extend(
+            tag_names(source)
+                .into_iter()
+                .map(|r| (None, r.start + literal.start..r.end + literal.start)),
+        );
+    }
     for mapping in &generated.map {
         let token = &generated.code[mapping.generated.clone()];
         let (source, range, owner) = match &mapping.origin {
@@ -297,11 +313,7 @@ fn check_item(
         // name, so one range collects several tokens; the name itself must be among them.
         if is_identifier(token) && is_identifier(original) {
             let bare = |text: &str| text.strip_prefix("r#").unwrap_or(text).to_owned();
-            let in_template = owner.is_some()
-                || inline.as_ref().is_some_and(|literal| {
-                    literal.start <= range.start && range.end <= literal.end
-                });
-            if in_template {
+            if tag_name_ranges.contains(&(owner.clone(), range.clone())) {
                 let entry = names
                     .entry((owner.clone(), range.clone()))
                     .or_insert((bare(original), false));
