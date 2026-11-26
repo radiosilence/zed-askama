@@ -5,7 +5,7 @@ The grammar and the Zed extension ship at one version. The language server is re
 ## How a release goes
 
 1. **Open the release pull request.** Run `just release patch` (or `minor`, `major`, or an exact `X.Y.Z`) at a terminal, or the **Release** workflow from the Actions tab, which does the same with `RELEASE_TOKEN`. `scripts/release.sh` branches `release-vX.Y.Z` from `origin/main` and:
-   - sets every version file to the new version with `scripts/versions.py --set` (the workspace `Cargo.toml`, `editors/zed/Cargo.toml`, `editors/zed/extension.toml` and `grammar/tree-sitter.json`);
+   - sets every version file to the new version with `scripts/versions.py --set` (the workspace `Cargo.toml`, `editors/zed/Cargo.toml` and `editors/zed/extension.toml`; not `grammar/tree-sitter.json`, whose version is compiled into the generated parser);
    - pins `editors/zed/extension.toml`'s grammar `rev` to the `origin/main` commit the branch starts from, which is pushed and holds the release's `grammar/src`, since Zed builds the grammar from that commit;
    - refreshes both lockfiles' own entries;
    - turns `changelog.d/unreleased` into the release's `CHANGELOG.md` section;
