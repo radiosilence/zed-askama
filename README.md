@@ -14,7 +14,9 @@ Askama compiles a template into Rust inside `#[derive(Template)]`. rust-analyzer
 
 Until it is in Zed's extension registry, install it as a dev extension: in Zed, open the command palette, run **zed: install dev extension**, and choose this repository's `editors/zed` directory.
 
-Files ending `.askama` or `.rinja` open as Askama HTML, `.md.askama` as Askama Markdown and `.txt.askama` as Askama Text. Templates named `*.html`, as most are, need telling apart from plain HTML; add a `file_types` setting naming where they live, in your settings or the project's `.zed/settings.json`:
+Files ending `.askama` or `.rinja` open as Askama HTML, `.md.askama` as Askama Markdown and `.txt.askama` as Askama Text.
+
+Templates named `*.html`, as most are, cannot be told apart from plain HTML by the extension itself: Zed lets an extension's language claim files by suffix only, and claiming `.html` would take every HTML file away from Zed's HTML support. Name where your templates live with a `file_types` setting. In the project's `.zed/settings.json`, committed, it applies to everyone who opens the repository:
 
 ```json
 {
@@ -23,6 +25,8 @@ Files ending `.askama` or `.rinja` open as Askama HTML, `.md.askama` as Askama M
   }
 }
 ```
+
+Without it, a template still gets completion, hover, definitions, references, renames, errors and formatting, since the language server also attaches to HTML files; only the template-aware highlighting, brackets and outline need the file to open as Askama HTML.
 
 `askama-analyzer fmt [--check] [PATH...]` formats templates, the files given or every file under a `templates` directory, changing only the spacing inside tags: text outside them is what askama renders, so it is never touched.
 
