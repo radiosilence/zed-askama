@@ -277,7 +277,11 @@ fn check_item(
         std::collections::HashSet::new();
     for path in &generated.templates {
         if let Some(text) = files.get(&**path) {
-            tag_name_ranges.extend(tag_names(text).into_iter().map(|r| (Some(Arc::clone(path)), r)));
+            tag_name_ranges.extend(
+                tag_names(text)
+                    .into_iter()
+                    .map(|r| (Some(Arc::clone(path)), r)),
+            );
         }
     }
     if let (Some(source), Some(literal)) = (inline_source(item_text), inline.as_ref()) {
