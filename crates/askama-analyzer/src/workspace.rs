@@ -53,6 +53,8 @@ pub struct Workspace {
     /// Overlays whose diagnostics rust-analyzer has not been asked for since they changed.
     /// rust-analyzer computes them only when asked.
     stale: BTreeSet<PathBuf>,
+    /// Whether the client has been told rust-analyzer is loading, and not yet that it is done.
+    announced: bool,
 }
 
 impl Workspace {
@@ -63,6 +65,7 @@ impl Workspace {
             rust: Rust::Idle,
             sent: BTreeMap::new(),
             stale: BTreeSet::new(),
+            announced: false,
         }
     }
 
@@ -116,6 +119,19 @@ impl Workspace {
             Rust::Running(session) => Some(session.last_used + crate::ra::IDLE),
             _ => None,
         }
+    }
+
+    /// `Some(true)` once when rust-analyzer starts loading the workspace, `Some(false)` once when
+    /// it has finished, so the client can show it as progress.
+    pub fn loading_changed(&mut self) -> Option<bool> {
+        let loading = match &self.rust {
+            Rust::Running(session) => !session.is_ready(),
+            _ => false,
+        };
+        (loading != self.announced).then(|| {
+            self.announced = loading;
+            loading
+        })
     }
 
     pub fn reset_failure(&mut self) {

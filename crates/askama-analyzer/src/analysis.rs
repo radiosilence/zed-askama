@@ -116,6 +116,20 @@ impl Analysis {
         self.files.get(path)
     }
 
+    /// Every template file askama read for some item.
+    pub fn templates(&self) -> Vec<PathBuf> {
+        let mut templates: Vec<PathBuf> = self
+            .files
+            .values()
+            .flat_map(|file| &file.items)
+            .filter_map(|item| item.generated.as_ref()?.as_ref().ok())
+            .flat_map(|generated| generated.templates.iter().map(|path| path.to_path_buf()))
+            .collect();
+        templates.sort();
+        templates.dedup();
+        templates
+    }
+
     /// The items that read `template`, as their file and index, those whose generation
     /// succeeded first.
     pub fn readers(&self, template: &Path) -> Vec<(PathBuf, usize)> {

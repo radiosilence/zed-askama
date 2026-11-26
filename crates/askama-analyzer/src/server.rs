@@ -25,7 +25,7 @@ use async_lsp::tracing::TracingLayer;
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::notification::{
     DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
-    Initialized, PublishDiagnostics, ShowMessage,
+    Initialized, Progress, PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
     Completion, Formatting, GotoDefinition, HoverRequest, Initialize, PrepareRenameRequest,
@@ -34,9 +34,11 @@ use lsp_types::request::{
 use lsp_types::{
     CompletionOptions, Diagnostic, DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions,
     FileSystemWatcher, GlobPattern, HoverProviderCapability, InitializeParams, InitializeResult,
-    MessageType, OneOf, PublishDiagnosticsParams, Registration, RegistrationParams, RenameOptions,
-    ServerCapabilities, ServerInfo, ShowMessageParams, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, Url,
+    MessageType, NumberOrString, OneOf, ProgressParams, ProgressParamsValue,
+    PublishDiagnosticsParams, Registration, RegistrationParams, RenameOptions, ServerCapabilities,
+    ServerInfo, ShowMessageParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, Url, WorkDoneProgress, WorkDoneProgressBegin,
+    WorkDoneProgressCreateParams, WorkDoneProgressEnd,
 };
 use parking_lot::Mutex;
 use tokio::sync::{Notify, mpsc, oneshot};
@@ -527,8 +529,39 @@ async fn refresh(
         }
         workspace.sync();
         workspace.pull_stale().await;
+        if let Some(loading) = workspace.loading_changed() {
+            progress(client, workspace.analysis.root(), loading).await;
+        }
     }
     publish(client, workspaces, docs, encoding, published);
+}
+
+/// Shows rust-analyzer loading a workspace as progress in the client, so the first seconds of
+/// unknown types are explained. A client that refuses the progress token is left alone.
+async fn progress(client: &ClientSocket, root: &Path, loading: bool) {
+    let token = NumberOrString::String(format!("askama-analyzer/rust-analyzer/{}", root.display()));
+    let value = if loading {
+        let mut asking = client.clone();
+        if asking
+            .work_done_progress_create(WorkDoneProgressCreateParams {
+                token: token.clone(),
+            })
+            .await
+            .is_err()
+        {
+            return;
+        }
+        WorkDoneProgress::Begin(WorkDoneProgressBegin {
+            title: "Loading rust-analyzer for templates".to_owned(),
+            ..WorkDoneProgressBegin::default()
+        })
+    } else {
+        WorkDoneProgress::End(WorkDoneProgressEnd::default())
+    };
+    let _ = client.notify::<Progress>(ProgressParams {
+        token,
+        value: ProgressParamsValue::WorkDone(value),
+    });
 }
 
 fn warn(client: &ClientSocket, message: String) {
