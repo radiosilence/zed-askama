@@ -513,7 +513,10 @@ fn run() {
         .map(|(word, count)| format!("{word} {count}"))
         .collect();
     eprintln!("most often unmapped: {}", listing.join(", "));
-    eprintln!("{} names whose tokens carry other text:", coverage.misses.len());
+    eprintln!(
+        "{} names whose tokens carry other text:",
+        coverage.misses.len()
+    );
     for miss in &coverage.misses {
         eprintln!("  {miss}");
     }
