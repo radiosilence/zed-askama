@@ -7,7 +7,8 @@ that states a version must state the same one:
 - Cargo.toml, `[workspace.package] version` (the crates inherit it);
 - editors/zed/Cargo.toml, the extension crate, a workspace of its own;
 - editors/zed/extension.toml, the version Zed's registry shows;
-- grammar/tree-sitter.json, `metadata.version`.
+- grammar/tree-sitter.json, `metadata.version`;
+- editors/claude-code/.claude-plugin/plugin.json, the Claude Code plugin's `version`.
 
 The lockfiles' entries for these crates follow the manifests; `cargo update
 --workspace` (run by scripts/release.sh) writes them, and `cargo build
@@ -55,11 +56,13 @@ TOML_FILES = {
     "editors/zed/extension.toml": extension_manifest_version,
 }
 TREE_SITTER = "grammar/tree-sitter.json"
+PLUGIN = "editors/claude-code/.claude-plugin/plugin.json"
 
 
 def versions() -> dict[str, str]:
     found = {name: read(ROOT / name)[0] for name, read in TOML_FILES.items()}
     found[TREE_SITTER] = json.loads((ROOT / TREE_SITTER).read_text())["metadata"]["version"]
+    found[PLUGIN] = json.loads((ROOT / PLUGIN).read_text())["version"]
     return found
 
 
@@ -76,6 +79,11 @@ def set_version(version: str) -> None:
     )
     if count != 1:
         sys.exit(f"{TREE_SITTER} has no metadata.version to set")
+    path.write_text(text)
+    path = ROOT / PLUGIN
+    text, count = re.subn(r'("version": ")[^"]*(")', lambda m: m.group(1) + version + m.group(2), path.read_text(), count=1)
+    if count != 1:
+        sys.exit(f"{PLUGIN} has no version to set")
     path.write_text(text)
 
 

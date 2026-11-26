@@ -192,14 +192,18 @@ mod tests {
         let target = go(text, "m::row").expect("resolves");
         assert_eq!(target.path, PathBuf::from("/t/macros.html"));
         let defined = &files()[&target.path];
-        assert_eq!(&defined[target.range], "row", "lands on the macro's name");
+        assert_eq!(
+            &defined[target.range.clone()],
+            "row",
+            "lands on the macro's name"
+        );
     }
 
     #[test]
     fn a_local_call_goes_to_the_macro_in_the_same_file() {
         let text = "{% macro cell() %}{% endmacro %}{% call cell() %}{% endcall %}";
         let target = go(text, "call cell").expect("resolves");
-        assert_eq!(&text[target.range], "cell");
+        assert_eq!(&text[target.range.clone()], "cell");
         assert_eq!(
             target.range.start,
             text.find("cell").expect("defined"),

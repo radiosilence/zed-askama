@@ -250,41 +250,41 @@ mod tests {
     use super::{Spot, keywords, spot};
 
     fn at(text: &str) -> (String, usize) {
-        let offset = text.find('|').expect("the fixture marks the cursor with |");
-        (text.replacen('|', "", 1), offset)
+        let offset = text.find('^').expect("the fixture marks the cursor with ^");
+        (text.replacen('^', "", 1), offset)
     }
 
     #[test]
     fn the_cursor_after_a_tag_opening_wants_a_keyword() {
-        let (text, offset) = at("<p>{% fo| %}");
+        let (text, offset) = at("<p>{% fo^ %}");
         assert_eq!(spot(&text, offset), Spot::Keyword { typed: "fo" });
-        let (text, offset) = at("<p>{%- | %}");
+        let (text, offset) = at("<p>{%- ^ %}");
         assert_eq!(spot(&text, offset), Spot::Keyword { typed: "" });
     }
 
     #[test]
     fn the_cursor_inside_an_include_string_wants_a_path() {
-        let (text, offset) = at("{% include \"parts/he| %}");
+        let (text, offset) = at("{% include \"parts/he^ %}");
         assert_eq!(spot(&text, offset), Spot::Path { typed: "parts/he" });
     }
 
     #[test]
     fn the_cursor_after_a_pipe_wants_a_filter_but_not_after_or() {
-        let (text, offset) = at("{{ name|up| }}");
+        let (text, offset) = at("{{ name|up^ }}");
         assert_eq!(spot(&text, offset), Spot::Filter { typed: "up" });
-        let (text, offset) = at("{% if a || b| %}");
+        let (text, offset) = at("{% if a || b^ %}");
         assert_eq!(spot(&text, offset), Spot::Other, "`||` is or, not a filter");
     }
 
     #[test]
     fn an_expression_is_left_to_rust_analyzer() {
-        let (text, offset) = at("{{ user.na| }}");
+        let (text, offset) = at("{{ user.na^ }}");
         assert_eq!(spot(&text, offset), Spot::Other);
     }
 
     #[test]
     fn the_closing_tag_of_the_innermost_open_block_comes_first() {
-        let (text, offset) = at("{% for x in xs %}{% if x %}{% endif %}{% |");
+        let (text, offset) = at("{% for x in xs %}{% if x %}{% endif %}{% ^");
         let items = keywords(&text, offset);
         assert_eq!(
             items[0].label, "endfor",
