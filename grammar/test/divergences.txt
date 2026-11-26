@@ -1,2 +1,155 @@
 # Inputs where askama_parser 0.16.1 and this grammar disagree, one per line:
-# the path under test/askama-corpus, then why the grammar differs.
+# the input (a path under vendor/askama-testing, with `:line` for an inline
+# source), then why the grammar differs. Most are checks askama's parser makes
+# beyond syntax, which the language server reports from askama_parser itself.
+
+templates/char-literals/char-literal-4.txt askama validates the value of escapes and characters in literals; the grammar checks only their shape
+templates/char-literals/char-literal-7.txt askama validates the value of escapes and characters in literals; the grammar checks only their shape
+templates/macro-call-raw-string-many-hashes.html askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/ambiguous-ws-raw.rs:12 askama rejects a comment holding only a whitespace-control character; the grammar reads it as a comment
+tests/ui/ambiguous-ws-raw.rs:4 askama rejects a comment holding only a whitespace-control character; the grammar reads it as a comment
+tests/ui/ambiguous-ws-raw.rs:8 askama rejects a comment holding only a whitespace-control character; the grammar reads it as a comment
+tests/ui/assign-to-askama.rs:8 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/blocks_below_top_level.rs:4 askama requires `extends` before any other node; the grammar accepts it anywhere
+tests/ui/break_outside_of_loop.rs:5 askama allows `break` and `continue` only inside a loop; the grammar accepts them anywhere
+tests/ui/char_literal.rs:100 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:104 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:48 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:52 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:56 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:60 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:64 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:68 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:72 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:84 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:88 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:92 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/char_literal.rs:96 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/comments-in-macro-calls.rs:14 the grammar reads an unclosed `/*` inside macro arguments as punctuation
+tests/ui/comments-in-macro-calls.rs:26 the grammar reads an unclosed `/*` inside macro arguments as punctuation
+tests/ui/comments-in-macro-calls.rs:38 the grammar reads an unclosed `/*` inside macro arguments as punctuation
+tests/ui/comparator-chaining.rs:14 the grammar parses chained comparisons left to right; askama rejects them
+tests/ui/comparator-chaining.rs:22 the grammar parses chained comparisons left to right; askama rejects them
+tests/ui/comparator-chaining.rs:32 the grammar parses chained comparisons left to right; askama rejects them
+tests/ui/comparator-chaining.rs:45 the grammar parses chained comparisons left to right; askama rejects them
+tests/ui/comparator-chaining.rs:6 the grammar parses chained comparisons left to right; askama rejects them
+tests/ui/concat.rs:11 askama requires spaces around `~`; the grammar skips whitespace between tokens
+tests/ui/concat.rs:18 askama requires spaces around `~`; the grammar skips whitespace between tokens
+tests/ui/concat.rs:25 askama requires spaces around `~`; the grammar skips whitespace between tokens
+tests/ui/concat.rs:32 askama requires spaces around `~`; the grammar skips whitespace between tokens
+tests/ui/concat.rs:39 askama requires spaces around `~`; the grammar skips whitespace between tokens
+tests/ui/concat.rs:4 askama requires spaces around `~`; the grammar skips whitespace between tokens
+tests/ui/crate_identifier.rs:104 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:110 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:116 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:122 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:128 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:134 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:140 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:146 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:152 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:156 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:160 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:164 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:168 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:172 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:176 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:180 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:184 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:188 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:192 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:196 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:20 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:200 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:204 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:208 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:212 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:216 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:24 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:30 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:34 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:4 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:46 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:50 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:56 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:60 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:72 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:76 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:8 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:86 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:90 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/crate_identifier.rs:99 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/extend.rs:5 askama requires `extends` before any other node; the grammar accepts it anywhere
+tests/ui/generics.rs:28 askama requires an unsuffixed or `usize` array length; the grammar accepts any integer
+tests/ui/illegal-string-literals.rs:102 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:109 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:113 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:117 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:121 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:125 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:32 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:36 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:54 tree-sitter's lexer reads a NUL byte as the end of the input
+tests/ui/illegal-string-literals.rs:64 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:70 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:74 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:78 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:82 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:86 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:90 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:94 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/illegal-string-literals.rs:98 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/macro-args-hashtag.rs:15 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/macro-args-hashtag.rs:22 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/macro-args-hashtag.rs:29 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/macro-args-hashtag.rs:8 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/macro-args.rs:7 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/macro-caller.rs:4 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:13 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:17 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:21 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:25 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:29 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:33 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:5 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-named-crate.rs:9 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro-super.rs:4 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/macro_named_argument.rs:12 the grammar does not check that named arguments are unique
+tests/ui/macro_named_argument.rs:62 the grammar does not check that named arguments are unique
+tests/ui/multiple_extends.rs:4 askama requires `extends` before any other node; the grammar accepts it anywhere
+tests/ui/name_mismatch_endblock.rs:4 the grammar does not check that an end tag's name matches its block's
+tests/ui/name_mismatch_endmacro.rs:4 the grammar does not check that an end tag's name matches its block's
+tests/ui/named_filter_arguments.rs:14 the grammar does not check that named arguments are unique
+tests/ui/number.rs:4 askama checks the digits of binary and octal literals inside macro arguments; the grammar reads `0b3` there as two tokens
+tests/ui/number.rs:8 askama checks the digits of binary and octal literals inside macro arguments; the grammar reads `0b3` there as two tokens
+tests/ui/raw-prefix.rs:112 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:116 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:120 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:129 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:136 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:143 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:150 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:157 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:16 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/raw-prefix.rs:164 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:171 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:178 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:23 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/raw-prefix.rs:32 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/raw-prefix.rs:39 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/raw-prefix.rs:46 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/raw-prefix.rs:55 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:62 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:69 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:76 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:83 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:9 askama validates the value of escapes and characters in literals; the grammar checks only their shape
+tests/ui/raw-prefix.rs:90 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/raw-prefix.rs:97 askama validates Rust tokens inside macro arguments; the grammar takes any token sequence
+tests/ui/references.rs:4 askama limits references in a type to 20; the grammar does not
+tests/ui/rest_pattern.rs:16 askama allows one rest pattern per tuple or slice, and `@ ..` only in slices; the grammar accepts any
+tests/ui/rest_pattern.rs:39 askama allows one rest pattern per tuple or slice, and `@ ..` only in slices; the grammar accepts any
+tests/ui/rest_pattern.rs:6 askama allows one rest pattern per tuple or slice, and `@ ..` only in slices; the grammar accepts any
+tests/ui/underscore.rs:12 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/underscore.rs:4 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
+tests/ui/underscore.rs:8 askama reserves some names (`self`, `crate`, `super`, `Self`, `_`, Rust keywords, `__askama…`) in this position; the grammar leaves names to the language server
