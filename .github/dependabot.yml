@@ -9,9 +9,8 @@ updates:
       patch-and-minor:
         update-types: ["minor", "patch"]
     ignore:
-      # Pinned exactly to the vendored askama_derive, which requires this
-      # parser. A new askama release is taken by re-vendoring
-      # (`just vendor-askama`), which moves both together.
+      # Pinned exactly to the release vendor/askama-testing comes from; a new
+      # askama release moves both (scripts/vendor-askama-testing.py).
       - dependency-name: askama_parser
 
   # Every action here is SHA-pinned, which is correct and also means they never

@@ -32,9 +32,7 @@ cd "$root" || exit 0
 # Only a Rust tree has anything to format.
 [ -f Cargo.toml ] || exit 0
 
-# The workspace's members only: `--all` also formats path dependencies, and the
-# vendored askama_derive must stay as upstream and its patch left it (it ships
-# a .rustfmt.toml of nightly options that stable rustfmt warns about).
+# The workspace's members only: `--all` also formats path dependencies.
 #
 # Hooks run without the user's shell profile, so cargo may not be on PATH:
 # take it through mise, which pins the toolchain, or from rustup's bin.

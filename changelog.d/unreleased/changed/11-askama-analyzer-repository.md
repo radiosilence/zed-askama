@@ -1,0 +1,1 @@
+- **The extension downloads askama-analyzer from its own repository.** The language server is now developed and released in radiosilence/askama-analyzer, so it ships on its own schedule and installed extensions take its newest release; this repository keeps the grammar and the extension.
