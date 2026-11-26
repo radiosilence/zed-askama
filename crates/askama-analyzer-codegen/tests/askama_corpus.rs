@@ -266,8 +266,11 @@ fn check_item(
     // Each identifier range of template text that tokens map to, and whether one of them is
     // that identifier.
     let mut names: HashMap<(Option<Arc<Path>>, Range<usize>), (String, bool)> = HashMap::new();
-    let inline = inline_source(item_text)
-        .and_then(|source| item_text.find(source).map(|start| start..start + source.len()));
+    let inline = inline_source(item_text).and_then(|source| {
+        item_text
+            .find(source)
+            .map(|start| start..start + source.len())
+    });
     for mapping in &generated.map {
         let token = &generated.code[mapping.generated.clone()];
         let (source, range, owner) = match &mapping.origin {
@@ -294,9 +297,14 @@ fn check_item(
         // name, so one range collects several tokens; the name itself must be among them.
         if is_identifier(token) && is_identifier(original) {
             let bare = |text: &str| text.strip_prefix("r#").unwrap_or(text).to_owned();
-            let in_template = owner.is_some() || inline.as_ref().is_some_and(|literal| literal.start <= range.start && range.end <= literal.end);
+            let in_template = owner.is_some()
+                || inline.as_ref().is_some_and(|literal| {
+                    literal.start <= range.start && range.end <= literal.end
+                });
             if in_template {
-                let entry = names.entry((owner.clone(), range.clone())).or_insert((bare(original), false));
+                let entry = names
+                    .entry((owner.clone(), range.clone()))
+                    .or_insert((bare(original), false));
                 entry.1 |= bare(token) == entry.0;
             }
         }
@@ -304,8 +312,13 @@ fn check_item(
     }
     for ((owner, range), (name, found)) in &names {
         if !found {
-            let place = owner.as_ref().map_or_else(|| "the inline source".to_owned(), |path| path.display().to_string());
-            failures.push(format!("{key}: no token from `{name}` at {range:?} in {place} is `{name}`"));
+            let place = owner.as_ref().map_or_else(
+                || "the inline source".to_owned(),
+                |path| path.display().to_string(),
+            );
+            failures.push(format!(
+                "{key}: no token from `{name}` at {range:?} in {place} is `{name}`"
+            ));
         }
     }
 

@@ -27,7 +27,11 @@ pub enum FormatError {
     Parse(String),
     /// Formatting the tag at this position changed what the template means, or would change
     /// again on a second pass. A bug in the formatter; the template is left as it was.
-    Unsafe { line: usize, column: usize, tag: String },
+    Unsafe {
+        line: usize,
+        column: usize,
+        tag: String,
+    },
 }
 
 impl fmt::Display for FormatError {
@@ -289,9 +293,7 @@ fn raw_end(source: &str, start: usize, syntax: &Syntax<'_>) -> Option<usize> {
         let after = source[i..].trim_start_matches(|c: char| c.is_ascii_whitespace());
         if let Some(after) = after.strip_prefix("endraw") {
             let after = after.trim_start_matches(|c: char| c.is_ascii_whitespace());
-            let after = after
-                .strip_prefix(['-', '+', '~'])
-                .unwrap_or(after);
+            let after = after.strip_prefix(['-', '+', '~']).unwrap_or(after);
             if after.starts_with(syntax.block_end) {
                 return Some(source.len() - after.len() + syntax.block_end.len());
             }
@@ -411,7 +413,11 @@ fn tokenize(body: &str) -> Option<Vec<Token<'_>>> {
             if *punct == "!" && tokens.last().is_some_and(|t| t.kind == Kind::Word) {
                 let after = body[i..].trim_start();
                 if after.starts_with(['(', '[', '{']) {
-                    tokens.push(Token { kind: Kind::Punct, text: "!", kept_gap });
+                    tokens.push(Token {
+                        kind: Kind::Punct,
+                        text: "!",
+                        kept_gap,
+                    });
                     let group_start = body.len() - after.len();
                     let group_end = group_end(body, group_start)?;
                     tokens.push(Token {
@@ -427,13 +433,20 @@ fn tokenize(body: &str) -> Option<Vec<Token<'_>>> {
         } else {
             return None;
         };
-        tokens.push(Token { kind, text: &body[start..i], kept_gap });
+        tokens.push(Token {
+            kind,
+            text: &body[start..i],
+            kept_gap,
+        });
     }
     Some(tokens)
 }
 
 fn number_end(bytes: &[u8], start: usize) -> usize {
-    let hex = bytes.get(start + 1).is_some_and(|b| matches!(b, b'x' | b'X')) && bytes[start] == b'0';
+    let hex = bytes
+        .get(start + 1)
+        .is_some_and(|b| matches!(b, b'x' | b'X'))
+        && bytes[start] == b'0';
     let mut i = start;
     while i < bytes.len() {
         let b = bytes[i];
@@ -444,7 +457,9 @@ fn number_end(bytes: &[u8], start: usize) -> usize {
         } else if matches!(b, b'+' | b'-')
             && !hex
             && matches!(bytes[i - 1], b'e' | b'E')
-            && bytes.get(i + 1).is_some_and(|n| n.is_ascii_digit() || *n == b'_')
+            && bytes
+                .get(i + 1)
+                .is_some_and(|n| n.is_ascii_digit() || *n == b'_')
         {
             i += 1;
         } else {
@@ -504,7 +519,10 @@ fn ends_operand(token: &Token<'_>, generic_close: bool) -> bool {
 /// The tag's tokens with canonical spacing, or `None` when the tag is not understood.
 fn format_tokens(body: &str) -> Option<String> {
     let tokens = tokenize(body)?;
-    let tag = tokens.first().filter(|t| t.kind == Kind::Word).map(|t| t.text);
+    let tag = tokens
+        .first()
+        .filter(|t| t.kind == Kind::Word)
+        .map(|t| t.text);
     let mut out = String::new();
     // Open groups, to tell a `when` arm's `|` alternatives from a filter's `|`.
     let mut depth = 0usize;
@@ -521,7 +539,9 @@ fn format_tokens(body: &str) -> Option<String> {
         let text = token.text;
 
         let opens_generics = text == "<"
-            && (previous.is_some_and(|p| p.text == "::") || (in_type && generics == 0) || generics > 0);
+            && (previous.is_some_and(|p| p.text == "::")
+                || (in_type && generics == 0)
+                || generics > 0);
         let closes_generics = generics > 0 && matches!(text, ">" | ">>");
         let is_prefix = token.kind == Kind::Punct
             && matches!(text, "-" | "*" | "&" | "&&" | "!")
@@ -548,7 +568,10 @@ fn format_tokens(body: &str) -> Option<String> {
                     true
                 } else if text == ":" {
                     false
-                } else if opens_generics || closes_generics || (generic_close && matches!(text, "(" | "::")) {
+                } else if opens_generics
+                    || closes_generics
+                    || (generic_close && matches!(text, "(" | "::"))
+                {
                     false
                 } else if p == "<" && generics > 0 {
                     false
@@ -558,7 +581,12 @@ fn format_tokens(body: &str) -> Option<String> {
                     tag == Some("when") && depth == 0
                 } else if text == "(" || text == "[" {
                     !ends_operand(&previous, generic_close) && !(p == "call" && text == "(")
-                } else if text == "!" && previous.kind == Kind::Word && tokens.get(index + 1).is_some_and(|n| n.kind == Kind::Verbatim) {
+                } else if text == "!"
+                    && previous.kind == Kind::Word
+                    && tokens
+                        .get(index + 1)
+                        .is_some_and(|n| n.kind == Kind::Verbatim)
+                {
                     false
                 } else {
                     !(p == "!" && token.kind == Kind::Verbatim)
@@ -581,7 +609,8 @@ fn format_tokens(body: &str) -> Option<String> {
         if text == ":" && matches!(tag, Some("let" | "set" | "macro")) {
             in_type = true;
             type_depth = depth;
-        } else if in_type && depth <= type_depth && generics == 0 && matches!(text, "=" | "," | ")") {
+        } else if in_type && depth <= type_depth && generics == 0 && matches!(text, "=" | "," | ")")
+        {
             in_type = false;
         }
         if opens_generics {
@@ -674,12 +703,18 @@ mod tests {
 
     #[test]
     fn tags_get_one_space_inside_their_delimiters() {
-        assert_eq!(formatted("{{x}}{%if a%}{%endif%}{#note#}"), "{{ x }}{% if a %}{% endif %}{# note #}");
+        assert_eq!(
+            formatted("{{x}}{%if a%}{%endif%}{#note#}"),
+            "{{ x }}{% if a %}{% endif %}{# note #}"
+        );
     }
 
     #[test]
     fn whitespace_control_markers_stay_against_their_delimiters() {
-        assert_eq!(formatted("{{-x+}}{%~ if a-%}{%endif%}{#-c-#}"), "{{- x +}}{%~ if a -%}{% endif %}{#- c -#}");
+        assert_eq!(
+            formatted("{{-x+}}{%~ if a-%}{%endif%}{#-c-#}"),
+            "{{- x +}}{%~ if a -%}{% endif %}{#- c -#}"
+        );
     }
 
     #[test]
@@ -691,22 +726,37 @@ mod tests {
     #[test]
     fn binary_operators_get_spaces_and_prefix_operators_none() {
         assert_eq!(formatted("{{a+b*-c}}"), "{{ a + b * -c }}");
-        assert_eq!(formatted("{% if !a&&b==c||d %}{% endif %}"), "{% if !a && b == c || d %}{% endif %}");
+        assert_eq!(
+            formatted("{% if !a&&b==c||d %}{% endif %}"),
+            "{% if !a && b == c || d %}{% endif %}"
+        );
         assert_eq!(formatted("{{ a~b }}"), "{{ a ~ b }}");
         assert_eq!(formatted("{{ & x }}{{ * y }}"), "{{ &x }}{{ *y }}");
     }
 
     #[test]
     fn calls_arguments_and_filters_are_spaced_as_rust_writes_them() {
-        assert_eq!(formatted("{{ f ( a ,b , c = 1 ) }}"), "{{ f(a, b, c = 1) }}");
-        assert_eq!(formatted("{{ x | upper | truncate( 3 ) }}"), "{{ x|upper|truncate(3) }}");
+        assert_eq!(
+            formatted("{{ f ( a ,b , c = 1 ) }}"),
+            "{{ f(a, b, c = 1) }}"
+        );
+        assert_eq!(
+            formatted("{{ x | upper | truncate( 3 ) }}"),
+            "{{ x|upper|truncate(3) }}"
+        );
         assert_eq!(formatted("{{ a . b [ 0 ] ? . c }}"), "{{ a.b[0]?.c }}");
     }
 
     #[test]
     fn ranges_paths_and_turbofish_are_tight() {
-        assert_eq!(formatted("{{ x[ 1 .. ] }}{{ a .. = b }}"), "{{ x[1..] }}{{ a..=b }}");
-        assert_eq!(formatted("{{ Vec :: < u8 > :: new ( ) }}"), "{{ Vec::<u8>::new() }}");
+        assert_eq!(
+            formatted("{{ x[ 1 .. ] }}{{ a .. = b }}"),
+            "{{ x[1..] }}{{ a..=b }}"
+        );
+        assert_eq!(
+            formatted("{{ Vec :: < u8 > :: new ( ) }}"),
+            "{{ Vec::<u8>::new() }}"
+        );
     }
 
     #[test]
@@ -720,13 +770,19 @@ mod tests {
 
     #[test]
     fn is_defined_and_casts_keep_their_words_apart() {
-        assert_eq!(formatted("{% if x  is  not   defined %}{% endif %}"), "{% if x is not defined %}{% endif %}");
+        assert_eq!(
+            formatted("{% if x  is  not   defined %}{% endif %}"),
+            "{% if x is not defined %}{% endif %}"
+        );
         assert_eq!(formatted("{{ ( a ) as u8 }}"), "{{ (a) as u8 }}");
     }
 
     #[test]
     fn types_in_let_and_macro_tags_keep_generics_tight() {
-        assert_eq!(formatted("{% let x : Vec < u8 > = v %}"), "{% let x: Vec<u8> = v %}");
+        assert_eq!(
+            formatted("{% let x : Vec < u8 > = v %}"),
+            "{% let x: Vec<u8> = v %}"
+        );
         assert_eq!(
             formatted("{% macro m( a : & str , b = 1 ) %}{% endmacro %}"),
             "{% macro m(a: &str, b = 1) %}{% endmacro %}"
@@ -735,7 +791,10 @@ mod tests {
 
     #[test]
     fn rust_macro_arguments_are_kept_as_written() {
-        assert_eq!(formatted("{{ format !( \"{}\" ,x ) }}"), "{{ format!( \"{}\" ,x ) }}");
+        assert_eq!(
+            formatted("{{ format !( \"{}\" ,x ) }}"),
+            "{{ format!( \"{}\" ,x ) }}"
+        );
     }
 
     #[test]
@@ -748,13 +807,20 @@ mod tests {
     #[test]
     fn a_tag_laid_out_over_lines_keeps_its_line_breaks() {
         let source = "{% call kit::card(\n    title ,\n    body\n) %}{% endcall %}";
-        assert_eq!(formatted(source), "{% call kit::card(\n    title,\n    body\n) %}{% endcall %}");
+        assert_eq!(
+            formatted(source),
+            "{% call kit::card(\n    title,\n    body\n) %}{% endcall %}"
+        );
     }
 
     #[test]
     fn a_template_that_does_not_parse_is_refused() {
-        let error = format("{{ a +", &Syntax::default()).expect_err("an unclosed tag does not parse");
-        assert!(matches!(error, FormatError::Parse(_)), "expected a parse error, got {error:?}");
+        let error =
+            format("{{ a +", &Syntax::default()).expect_err("an unclosed tag does not parse");
+        assert!(
+            matches!(error, FormatError::Parse(_)),
+            "expected a parse error, got {error:?}"
+        );
     }
 
     #[test]
