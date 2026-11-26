@@ -1,0 +1,2 @@
+# Items in askama's passing tests that this crate reports askama errors for, one per line:
+# `tests/<file>:<line>:<item>`, then why. Askama's own passing tests should have none.
