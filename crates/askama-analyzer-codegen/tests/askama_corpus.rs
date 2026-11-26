@@ -5,12 +5,14 @@
 //! reading templates from disk. Each must generate without an askama error, as it does under
 //! `cargo test` in askama, unless `tests/askama_corpus_errors.txt` lists it with the reason;
 //! its code must parse as Rust; and every token mapped to template text must point at text
-//! that exists, an identifier at the same identifier.
+//! that exists.
 //!
-//! The run also measures how many of the names written in templates' tags reach the
-//! generated code with their location, and asserts a floor: the tooling patch's job is to
-//! keep those locations, and a regression there would otherwise pass silently. It prints the
-//! total time and the slowest items, a first benchmark of the generator.
+//! askama gives a whole expression's span to the helper tokens it writes around a name, so
+//! a name's range collects several tokens, and the name itself should be among them. The run
+//! counts the names in tags where it is not, and how many of the names in tags map at all,
+//! and holds both to what was measured: the tooling patch's job is to keep these locations,
+//! and a regression there would otherwise pass silently. It prints the total time and the
+//! slowest items, a first benchmark of the generator.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -30,6 +32,14 @@ use syn::visit::Visit;
 /// test's output for the current figure). Names that never reach Rust as written, such as
 /// block and macro names, keep it below 1.
 const COVERAGE_FLOOR: f64 = 0.63;
+
+/// Names written in tags that tokens map to without any of them being that name, measured at
+/// 0.16.1. askama writes a macro's argument where the parameter is used, so the parameter's
+/// range carries the caller's expression (`param` in macro.html, 22 of them); and a filter
+/// named in a `filter` block or a call's arguments maps only with the helper path around it
+/// (`lower`, `urlencode`, `value`). A higher count means the tooling patch now puts template
+/// ranges on the wrong tokens.
+const MISSES_CEILING: usize = 33;
 
 /// The items `syn` finds in askama's 0.16.1 tests: 494 of the 505 deriving `Template`, the
 /// rest written inside `macro_rules!` bodies, whose sources are macro arguments.
@@ -244,6 +254,8 @@ struct Coverage {
     mapped: usize,
     /// How often each name that did not map was written, for the report.
     unmapped: HashMap<String, usize>,
+    /// Names in tags whose tokens all carry other text.
+    misses: Vec<String>,
 }
 
 /// Checks one item's output; returns its failures.
@@ -332,7 +344,7 @@ fn check_item(
                 || "the inline source".to_owned(),
                 |path| path.display().to_string(),
             );
-            failures.push(format!(
+            coverage.misses.push(format!(
                 "{key}: no token from `{name}` at {range:?} in {place} is `{name}`"
             ));
         }
@@ -501,6 +513,10 @@ fn run() {
         .map(|(word, count)| format!("{word} {count}"))
         .collect();
     eprintln!("most often unmapped: {}", listing.join(", "));
+    eprintln!("{} names whose tokens carry other text:", coverage.misses.len());
+    for miss in &coverage.misses {
+        eprintln!("  {miss}");
+    }
     eprintln!("slowest:");
     for outcome in outcomes.iter().take(10) {
         eprintln!("  {:>9.2?}  {}", outcome.elapsed, outcome.key);
@@ -516,6 +532,11 @@ fn run() {
         "{} failures:\n{}",
         failures.len(),
         failures.join("\n")
+    );
+    assert!(
+        coverage.misses.len() <= MISSES_CEILING,
+        "{} names in tags map only to tokens with other text, above the {MISSES_CEILING} measured; see the list above",
+        coverage.misses.len()
     );
     assert!(
         share >= COVERAGE_FLOOR,
