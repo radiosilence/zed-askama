@@ -3,11 +3,13 @@
 //!
 //! Notifications only record what changed, in a table of documents shared with the lane, and
 //! wake it. The lane waits for the edits to settle, so a burst of keystrokes is analysed once,
-//! then applies every change in order and publishes the diagnostics that changed. A change is
-//! a whole document's text, never a delta, so a lane that falls behind loses intermediate
-//! states, never a change.
+//! then applies every change in order, sends rust-analyzer the overlays that changed and
+//! publishes the diagnostics that changed. A change is a whole document's text, never a delta,
+//! so a lane that falls behind loses intermediate states, never a change. Requests go down the
+//! same lane, after any change that arrived before them.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::future::Future;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -20,26 +22,33 @@ use async_lsp::panic::CatchUnwindLayer;
 use async_lsp::router::Router;
 use async_lsp::server::LifecycleLayer;
 use async_lsp::tracing::TracingLayer;
-use async_lsp::{ClientSocket, LanguageClient};
+use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::notification::{
     DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
-    Initialized, PublishDiagnostics,
+    Initialized, PublishDiagnostics, ShowMessage,
 };
-use lsp_types::request::{Initialize, Shutdown};
+use lsp_types::request::{
+    Completion, GotoDefinition, HoverRequest, Initialize, PrepareRenameRequest, References, Rename,
+    Shutdown,
+};
 use lsp_types::{
-    Diagnostic, DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher,
-    GlobPattern, InitializeParams, InitializeResult, PublishDiagnosticsParams, Registration,
-    RegistrationParams, ServerCapabilities, ServerInfo, TextDocumentSyncCapability,
+    CompletionOptions, Diagnostic, DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions,
+    FileSystemWatcher, GlobPattern, HoverProviderCapability, InitializeParams, InitializeResult,
+    MessageType, OneOf, PublishDiagnosticsParams, Registration, RegistrationParams, RenameOptions,
+    ServerCapabilities, ServerInfo, ShowMessageParams, TextDocumentSyncCapability,
     TextDocumentSyncKind, TextDocumentSyncOptions, Url,
 };
 use parking_lot::Mutex;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, mpsc, oneshot};
 use tower::ServiceBuilder;
 
 use crate::analysis::{self, Analysis, Problem};
+use crate::features::{self, Query};
 use crate::generator::Generator;
+use crate::ra::Config;
 use crate::text::{Encoding, Lines};
 use crate::vfs::Vfs;
+use crate::workspace::Workspace;
 
 /// A burst of keystrokes is analysed once, after this much quiet: shorter than a pause that
 /// reads as lag.
@@ -47,17 +56,26 @@ const SETTLE: Duration = Duration::from_millis(150);
 /// The longest the lane waits while edits keep arriving, so continuous typing still gets
 /// answers.
 const MAX_SETTLE: Duration = Duration::from_millis(1000);
+/// Requests waiting for the lane. An editor sends a handful at a time; the bound holds back a
+/// client that floods it rather than growing without limit.
+const QUEUE: usize = 64;
 /// The language identifier the Zed extension gives every Askama language.
 const ASKAMA_LANGUAGE: &str = "askama";
+/// The language identifier of Rust files, which hold no templates the server reads yet.
+const RUST_LANGUAGE: &str = "rust";
 
 /// Serves the protocol on stdin and stdout until the client exits.
 pub async fn run() -> anyhow::Result<ExitCode> {
     let (server, _) = async_lsp::MainLoop::new_server(|client| {
+        let (queries, inbox) = mpsc::channel(QUEUE);
         let state = State {
             client: client.clone(),
             shared: Arc::new(Shared::default()),
             encoding: Encoding::Utf16,
             roots: Vec::new(),
+            config: Config::default(),
+            queries,
+            inbox: Some(inbox),
         };
         ServiceBuilder::new()
             .layer(TracingLayer::default())
@@ -78,13 +96,18 @@ struct State {
     shared: Arc<Shared>,
     encoding: Encoding,
     roots: Vec<PathBuf>,
+    config: Config,
+    queries: mpsc::Sender<Query>,
+    /// Handed to the lane when it starts.
+    inbox: Option<mpsc::Receiver<Query>>,
 }
 
 /// The documents as the editor has them, and which files changed since the lane last looked.
 #[derive(Default)]
 struct Shared {
     inner: Mutex<Inner>,
-    wake: Notify,
+    /// Wakes the lane: an edit, or rust-analyzer having published.
+    wake: Arc<Notify>,
 }
 
 #[derive(Default)]
@@ -108,6 +131,22 @@ impl Shared {
         drop(inner);
         self.wake.notify_one();
     }
+
+    /// The documents now, and the files changed since the last call.
+    fn take(&self, docs: &mut HashMap<PathBuf, Doc>, changed: &mut BTreeSet<PathBuf>) {
+        let mut inner = self.inner.lock();
+        docs.clone_from(&inner.docs);
+        changed.append(&mut inner.changed);
+    }
+
+    fn language(&self, uri: &Url) -> Option<String> {
+        let path = file_path(uri)?;
+        self.inner
+            .lock()
+            .docs
+            .get(&path)
+            .map(|doc| doc.language.clone())
+    }
 }
 
 fn router(state: State) -> Router<State> {
@@ -118,14 +157,50 @@ fn router(state: State) -> Router<State> {
             async move { Ok(result) }
         })
         .request::<Shutdown, _>(|_, ()| async { Ok(()) })
+        .request::<HoverRequest, _>(|state, params| {
+            let uri = params
+                .text_document_position_params
+                .text_document
+                .uri
+                .clone();
+            ask(state, &uri, |reply| Query::Hover(params, reply))
+        })
+        .request::<GotoDefinition, _>(|state, params| {
+            let uri = params
+                .text_document_position_params
+                .text_document
+                .uri
+                .clone();
+            ask(state, &uri, |reply| Query::Definition(params, reply))
+        })
+        .request::<References, _>(|state, params| {
+            let uri = params.text_document_position.text_document.uri.clone();
+            ask(state, &uri, |reply| Query::References(params, reply))
+        })
+        .request::<PrepareRenameRequest, _>(|state, params| {
+            let uri = params.text_document.uri.clone();
+            ask(state, &uri, |reply| Query::PrepareRename(params, reply))
+        })
+        .request::<Rename, _>(|state, params| {
+            let uri = params.text_document_position.text_document.uri.clone();
+            ask(state, &uri, |reply| Query::Rename(params, reply))
+        })
+        .request::<Completion, _>(|state, params| {
+            let uri = params.text_document_position.text_document.uri.clone();
+            ask(state, &uri, |reply| Query::Completion(params, reply))
+        })
         .notification::<Initialized>(|state, _| {
             register_watchers(&state.client);
-            tokio::spawn(lane(
-                state.client.clone(),
-                Arc::clone(&state.shared),
-                state.roots.clone(),
-                state.encoding,
-            ));
+            if let Some(inbox) = state.inbox.take() {
+                tokio::spawn(lane(
+                    state.client.clone(),
+                    Arc::clone(&state.shared),
+                    state.roots.clone(),
+                    state.encoding,
+                    state.config.clone(),
+                    inbox,
+                ));
+            }
             ControlFlow::Continue(())
         })
         .notification::<DidOpenTextDocument>(|state, params| {
@@ -179,6 +254,25 @@ fn router(state: State) -> Router<State> {
     router
 }
 
+/// Sends a request down the lane and waits for its answer. A Rust file is answered at once
+/// with nothing: rust-analyzer answers there, and Zed asks every server attached to a buffer.
+fn ask<T: Send + 'static, Q: FnOnce(oneshot::Sender<Option<T>>) -> Query>(
+    state: &State,
+    uri: &Url,
+    query: Q,
+) -> impl Future<Output = Result<Option<T>, ResponseError>> + use<T, Q> {
+    let skip = state.shared.language(uri).as_deref() == Some(RUST_LANGUAGE);
+    let (reply, answer) = oneshot::channel();
+    let query = query(reply);
+    let queries = state.queries.clone();
+    async move {
+        if skip || queries.send(query).await.is_err() {
+            return Ok(None);
+        }
+        Ok(answer.await.unwrap_or(None))
+    }
+}
+
 fn initialize(state: &mut State, params: &InitializeParams) -> InitializeResult {
     state.encoding = Encoding::negotiate(
         params
@@ -187,6 +281,7 @@ fn initialize(state: &mut State, params: &InitializeParams) -> InitializeResult 
             .as_ref()
             .and_then(|general| general.position_encodings.as_deref()),
     );
+    state.config = Config::from_initialization_options(params.initialization_options.as_ref());
     state.roots = params
         .workspace_folders
         .iter()
@@ -210,6 +305,18 @@ fn initialize(state: &mut State, params: &InitializeParams) -> InitializeResult 
                     ..TextDocumentSyncOptions::default()
                 },
             )),
+            hover_provider: Some(HoverProviderCapability::Simple(true)),
+            definition_provider: Some(OneOf::Left(true)),
+            references_provider: Some(OneOf::Left(true)),
+            rename_provider: Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            })),
+            completion_provider: Some(CompletionOptions {
+                // A field after `.`, a filter after `|`, a path after `::`.
+                trigger_characters: Some(vec![".".to_owned(), "|".to_owned(), ":".to_owned()]),
+                ..CompletionOptions::default()
+            }),
             ..ServerCapabilities::default()
         },
         server_info: Some(ServerInfo {
@@ -255,9 +362,16 @@ fn register_watchers(client: &ClientSocket) {
     });
 }
 
-/// The one ordered lane: loads each workspace root, then applies changes as they settle and
-/// publishes what changed.
-async fn lane(client: ClientSocket, shared: Arc<Shared>, roots: Vec<PathBuf>, encoding: Encoding) {
+/// The one ordered lane: loads each workspace root, then applies changes as they settle,
+/// answers requests in the order they arrive, and stops rust-analyzer when it idles.
+async fn lane(
+    client: ClientSocket,
+    shared: Arc<Shared>,
+    roots: Vec<PathBuf>,
+    encoding: Encoding,
+    config: Config,
+    mut inbox: mpsc::Receiver<Query>,
+) {
     let generator = match Generator::spawn() {
         Ok(generator) => generator,
         Err(err) => {
@@ -265,7 +379,7 @@ async fn lane(client: ClientSocket, shared: Arc<Shared>, roots: Vec<PathBuf>, en
             return;
         }
     };
-    let mut analyses = Vec::new();
+    let mut workspaces = Vec::new();
     for root in &roots {
         match Analysis::load(root, generator.clone(), Vfs::default()).await {
             Ok(analysis) => {
@@ -275,35 +389,121 @@ async fn lane(client: ClientSocket, shared: Arc<Shared>, roots: Vec<PathBuf>, en
                     items = analysis.item_count(),
                     "loaded"
                 );
-                analyses.push(analysis);
+                workspaces.push(Workspace::new(analysis, encoding));
             }
             Err(err) => tracing::info!(root = %root.display(), "{err:#}; nothing to analyse there"),
         }
+    }
+    if config.path.is_none() {
+        warn(
+            &client,
+            "askama-analyzer found no rust-analyzer, so templates get askama's own errors only. Set lsp.rust-analyzer.binary.path, or install rust-analyzer.".to_owned(),
+        );
     }
 
     let mut published: BTreeMap<PathBuf, Vec<Diagnostic>> = BTreeMap::new();
     let mut docs: HashMap<PathBuf, Doc> = HashMap::new();
     let mut changed: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut dirty = true;
     loop {
-        for analysis in &mut analyses {
-            for path in &changed {
-                match docs.get(path) {
-                    Some(doc) => analysis.vfs.set(path.clone(), Arc::clone(&doc.text)),
-                    None => analysis.vfs.close(path),
+        if dirty {
+            refresh(
+                &client,
+                &mut workspaces,
+                &docs,
+                &changed,
+                &config,
+                &shared.wake,
+                encoding,
+                &mut published,
+            )
+            .await;
+            changed.clear();
+            dirty = false;
+        }
+        let idle_at = workspaces.iter().filter_map(Workspace::idle_at).min();
+        tokio::select! {
+            () = shared.wake.notified() => {
+                settle(&shared).await;
+                shared.take(&mut docs, &mut changed);
+                dirty = true;
+            }
+            query = inbox.recv() => {
+                let Some(query) = query else { return };
+                // The request is about the documents as they are now.
+                shared.take(&mut docs, &mut changed);
+                if !changed.is_empty() {
+                    refresh(&client, &mut workspaces, &docs, &changed, &config, &shared.wake, encoding, &mut published).await;
+                    changed.clear();
+                }
+                tracing::debug!(uri = %query.uri(), "answering");
+                features::answer(&mut workspaces, query).await;
+            }
+            () = sleep_until(idle_at) => {
+                let now = tokio::time::Instant::now();
+                for workspace in &mut workspaces {
+                    workspace.stop_if_idle(now);
                 }
             }
-            if let Err(err) = analysis.apply(&changed).await {
-                tracing::warn!("{err:#}");
+        }
+    }
+}
+
+async fn sleep_until(deadline: Option<tokio::time::Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline).await,
+        None => std::future::pending().await,
+    }
+}
+
+/// Applies changed files, starts rust-analyzer where templates are open, sends it what
+/// changed, and publishes.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the lane's state, passed apart so the borrows stay simple"
+)]
+async fn refresh(
+    client: &ClientSocket,
+    workspaces: &mut [Workspace],
+    docs: &HashMap<PathBuf, Doc>,
+    changed: &BTreeSet<PathBuf>,
+    config: &Config,
+    wake: &Arc<Notify>,
+    encoding: Encoding,
+    published: &mut BTreeMap<PathBuf, Vec<Diagnostic>>,
+) {
+    for workspace in workspaces.iter_mut() {
+        for path in changed {
+            match docs.get(path) {
+                Some(doc) => workspace
+                    .analysis
+                    .vfs
+                    .set(path.clone(), Arc::clone(&doc.text)),
+                None => workspace.analysis.vfs.close(path),
             }
         }
-        publish(&client, &analyses, &docs, encoding, &mut published);
-
-        shared.wake.notified().await;
-        settle(&shared).await;
-        let mut inner = shared.inner.lock();
-        docs.clone_from(&inner.docs);
-        changed = std::mem::take(&mut inner.changed);
+        if let Err(err) = workspace.analysis.apply(changed).await {
+            tracing::warn!("{err:#}");
+        }
+        if changed.iter().any(|path| path.ends_with("Cargo.toml")) {
+            workspace.reset_failure();
+        }
+        if workspace.wants_rust(docs.keys().map(PathBuf::as_path))
+            && let Some(message) = workspace.start(config, wake).await
+        {
+            warn(client, message);
+        }
+        workspace.sync();
     }
+    publish(client, workspaces, docs, encoding, published);
+}
+
+fn warn(client: &ClientSocket, message: String) {
+    tracing::warn!("{message}");
+    let _ = client.notify::<ShowMessage>(ShowMessageParams {
+        typ: MessageType::WARNING,
+        message,
+    });
 }
 
 /// Waits until no change has arrived for [`SETTLE`], or [`MAX_SETTLE`] has passed.
@@ -322,21 +522,21 @@ async fn settle(shared: &Shared) {
 /// files whose problems are gone.
 fn publish(
     client: &ClientSocket,
-    analyses: &[Analysis],
+    workspaces: &[Workspace],
     docs: &HashMap<PathBuf, Doc>,
     encoding: Encoding,
     published: &mut BTreeMap<PathBuf, Vec<Diagnostic>>,
 ) {
     let mut problems: BTreeMap<PathBuf, BTreeSet<Problem>> = BTreeMap::new();
-    for analysis in analyses {
-        for (path, list) in analysis.problems() {
+    for workspace in workspaces {
+        for (path, list) in workspace.problems() {
             problems.entry(path).or_default().extend(list);
         }
     }
     // An open template no item reads still gets askama's syntax errors.
     for (path, doc) in docs {
         if doc.language == ASKAMA_LANGUAGE
-            && !analyses.iter().any(|analysis| analysis.owns(path))
+            && !features::is_template(workspaces, path)
             && let Some(problem) = analysis::syntax_problem(path, &doc.text)
         {
             problems.entry(path.clone()).or_default().insert(problem);
@@ -345,7 +545,7 @@ fn publish(
 
     let mut now: BTreeMap<PathBuf, Vec<Diagnostic>> = BTreeMap::new();
     for (path, list) in &problems {
-        let Some(text) = text_of(path, docs, analyses) else {
+        let Some(text) = text_of(path, docs, workspaces) else {
             continue;
         };
         let lines = Lines::new(&text, encoding);
@@ -392,13 +592,17 @@ fn publish(
     }
 }
 
-fn text_of(path: &Path, docs: &HashMap<PathBuf, Doc>, analyses: &[Analysis]) -> Option<Arc<str>> {
+fn text_of(
+    path: &Path,
+    docs: &HashMap<PathBuf, Doc>,
+    workspaces: &[Workspace],
+) -> Option<Arc<str>> {
     if let Some(doc) = docs.get(path) {
         return Some(Arc::clone(&doc.text));
     }
-    analyses
+    workspaces
         .iter()
-        .find_map(|analysis| analysis.vfs.read(path).ok())
+        .find_map(|workspace| workspace.analysis.vfs.read(path).ok())
 }
 
 /// askama points at where a node starts; an empty range draws nothing, so it is widened to

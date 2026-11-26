@@ -82,6 +82,7 @@ dependencies = [
  "lsp-types",
  "parking_lot",
  "proc-macro2",
+ "serde",
  "serde_json",
  "syn 3.0.10",
  "tokio",

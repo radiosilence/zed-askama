@@ -6,9 +6,13 @@
 
 pub mod analysis;
 pub mod check;
+pub mod features;
 pub mod generator;
 pub mod index;
+pub mod overlay;
 pub mod project;
+pub mod ra;
 pub mod server;
 pub mod text;
 pub mod vfs;
+pub mod workspace;

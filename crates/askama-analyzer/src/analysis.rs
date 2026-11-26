@@ -52,12 +52,13 @@ pub struct Item {
     pub generated: Option<Result<Generated, String>>,
 }
 
+/// A Rust file that defines template items.
 #[derive(Debug)]
-struct RustFile {
+pub struct RustFile {
     package: usize,
     /// The text the items' ranges refer to.
-    text: Arc<str>,
-    items: Vec<Item>,
+    pub text: Arc<str>,
+    pub items: Vec<Item>,
 }
 
 pub struct Analysis {
@@ -100,6 +101,73 @@ impl Analysis {
             self.generate_file(&path).await;
         }
         Ok(())
+    }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The Rust files that define template items.
+    pub fn files(&self) -> impl Iterator<Item = (&Path, &RustFile)> {
+        self.files.iter().map(|(path, file)| (path.as_path(), file))
+    }
+
+    pub fn file(&self, path: &Path) -> Option<&RustFile> {
+        self.files.get(path)
+    }
+
+    /// The items that read `template`, as their file and index, those whose generation
+    /// succeeded first.
+    pub fn readers(&self, template: &Path) -> Vec<(PathBuf, usize)> {
+        let mut readers: Vec<(PathBuf, usize, bool)> = Vec::new();
+        for (path, file) in &self.files {
+            for (at, item) in file.items.iter().enumerate() {
+                if let Some(Ok(generated)) = &item.generated
+                    && generated.templates.iter().any(|read| **read == *template)
+                {
+                    readers.push((path.clone(), at, generated.errors.is_empty()));
+                }
+            }
+        }
+        readers.sort_by_key(|(_, _, clean)| !clean);
+        readers
+            .into_iter()
+            .map(|(path, at, _)| (path, at))
+            .collect()
+    }
+
+    /// What an item generates with `template` read as `text` rather than as it is: the probe a
+    /// completion asks about.
+    pub async fn probe(
+        &self,
+        rust_file: &Path,
+        item: usize,
+        template: &Path,
+        text: Arc<str>,
+    ) -> Option<Generated> {
+        let file = self.files.get(rust_file)?;
+        let item_text = file.text[file.items.get(item)?.found.range.clone()].to_owned();
+        let manifest_dir = self.packages[file.package].manifest_dir.clone();
+        let mut vfs = self.vfs.clone();
+        vfs.set(template.to_owned(), text);
+        let snapshot = vfs.snapshot();
+        let rust_file = rust_file.to_owned();
+        self.generator
+            .run(move || {
+                let files: Rc<dyn Files> = Rc::new(snapshot);
+                askama_analyzer_codegen::generate(
+                    Input {
+                        item: &item_text,
+                        file: &rust_file,
+                        manifest_dir: &manifest_dir,
+                    },
+                    files,
+                )
+                .ok()
+            })
+            .await
+            .ok()
+            .flatten()
     }
 
     /// How many items derive `Template`.
