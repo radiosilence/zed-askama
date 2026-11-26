@@ -2,8 +2,10 @@
 //! `import` names, the `{% macro %}` a `{% call %}` names, and the block a child's
 //! `{% block %}` overrides in the template it extends.
 //!
-//! Template paths resolve among the files askama itself read for some item, so they resolve as
-//! askama resolves them, without a second resolver.
+//! Each answers only with the cursor on the name itself (the path, the callee, the block's
+//! name), so an expression elsewhere in the tag is still rust-analyzer's to answer. Template
+//! paths resolve among the files askama itself read for some item, looking where askama looks:
+//! beside the template first, then up through the directories above it.
 
 use std::ops::Range;
 use std::path::{Path, PathBuf};
@@ -15,7 +17,7 @@ pub struct Target {
     pub range: Range<usize>,
 }
 
-/// What the cursor at `offset` of `text` (the template at `path`) refers to, if it is a
+/// What the cursor at `offset` of `text` (the template at `path`) refers to, if it is on a
 /// template-level name. `known` are the template files askama read; `read` reads one.
 pub fn definition(
     path: &Path,
@@ -24,20 +26,23 @@ pub fn definition(
     known: &[PathBuf],
     read: &dyn Fn(&Path) -> Option<String>,
 ) -> Option<Target> {
-    let tag = enclosing_tag(text, offset)?;
-    let words: Vec<&str> = tag.split_whitespace().collect();
-    let keyword = *words.first()?;
+    let (start, tag) = enclosing_tag(text, offset)?;
+    let words = words(tag, start);
+    let (keyword, _) = *words.first()?;
+    let on = |span: &Range<usize>| span.start <= offset && offset <= span.end;
     match keyword {
         "extends" | "include" | "import" => {
-            let name = quoted(tag)?;
-            let file = resolve(name, known)?;
+            let (name, span) = quoted(tag, start)?;
+            on(&span).then_some(())?;
             Some(Target {
-                path: file,
+                path: resolve(name, path, known)?,
                 range: 0..0,
             })
         }
         "call" => {
-            let callee = words.get(1)?.split('(').next()?;
+            let (callee, at) = *words.get(1)?;
+            let callee = callee.split('(').next()?;
+            on(&(at..at + callee.len())).then_some(())?;
             let (scope, name) = match callee.split_once("::") {
                 Some((scope, name)) => (Some(scope), name),
                 None => (None, callee),
@@ -48,18 +53,19 @@ pub fn definition(
                     range,
                 }),
                 Some(scope) => {
-                    let file = import_of(text, scope, known)?;
+                    let file = import_of(text, path, scope, known)?;
                     let imported = read(&file)?;
                     find_tag(&imported, "macro", name).map(|range| Target { path: file, range })
                 }
             }
         }
         "block" => {
-            let name = *words.get(1)?;
-            let mut current = text.to_owned();
+            let (name, at) = *words.get(1)?;
+            on(&(at..at + name.len())).then_some(())?;
+            let mut current = (path.to_owned(), text.to_owned());
             // A bound on the chain, which askama itself refuses to let loop.
             for _ in 0..32 {
-                let parent = extends_of(&current, known)?;
+                let parent = extends_of(&current.1, &current.0, known)?;
                 let parent_text = read(&parent)?;
                 if let Some(range) = find_tag(&parent_text, "block", name) {
                     return Some(Target {
@@ -67,7 +73,7 @@ pub fn definition(
                         range,
                     });
                 }
-                current = parent_text;
+                current = (parent, parent_text);
             }
             None
         }
@@ -75,48 +81,72 @@ pub fn definition(
     }
 }
 
-/// The inside of the `{% ... %}` tag holding `offset`, without delimiters or whitespace control.
-fn enclosing_tag(text: &str, offset: usize) -> Option<&str> {
+/// The tag holding `offset`: where its trimmed inside starts, and the inside.
+fn enclosing_tag(text: &str, offset: usize) -> Option<(usize, &str)> {
     let open = text[..offset].rfind("{%")?;
     if text[open..offset].contains("%}") {
         return None;
     }
     let close = offset + text[offset..].find("%}")?;
-    Some(
-        text[open + 2..close]
-            .trim_start_matches(['-', '+', '~'])
-            .trim_end_matches(['-', '+', '~'])
-            .trim(),
-    )
+    let inside = &text[open + 2..close];
+    let trimmed = inside.trim_start_matches(['-', '+', '~']).trim_start();
+    let start = open + 2 + (inside.len() - trimmed.len());
+    Some((start, trimmed.trim_end_matches(['-', '+', '~']).trim_end()))
 }
 
-fn quoted(tag: &str) -> Option<&str> {
-    let start = tag.find('"')? + 1;
-    let end = start + tag[start..].find('"')?;
-    Some(&tag[start..end])
+/// The tag's words, each with its offset in the file.
+fn words(tag: &str, start: usize) -> Vec<(&str, usize)> {
+    let mut found = Vec::new();
+    let mut rest = 0;
+    for word in tag.split_whitespace() {
+        let at = rest + tag[rest..].find(word).unwrap_or(0);
+        found.push((word, start + at));
+        rest = at + word.len();
+    }
+    found
 }
 
-/// The known template file a tag's path names: its path ends with the name, component by
-/// component.
-fn resolve(name: &str, known: &[PathBuf]) -> Option<PathBuf> {
-    known.iter().find(|file| file.ends_with(name)).cloned()
+/// The tag's quoted path, and where it sits in the file.
+fn quoted(tag: &str, start: usize) -> Option<(&str, Range<usize>)> {
+    let open = tag.find('"')? + 1;
+    let close = open + tag[open..].find('"')?;
+    Some((&tag[open..close], start + open..start + close))
+}
+
+/// The known template file a tag's path names, resolved as askama does: among the known files
+/// whose path ends with the name, those in a directory at or above the reading template's, the
+/// nearest first.
+fn resolve(name: &str, from: &Path, known: &[PathBuf]) -> Option<PathBuf> {
+    let here = from.parent()?;
+    let depth = Path::new(name).components().count();
+    known
+        .iter()
+        .filter(|file| file.ends_with(name))
+        .filter_map(|file| {
+            let base = file.ancestors().nth(depth)?;
+            here.starts_with(base)
+                .then(|| (base.components().count(), file))
+        })
+        .max_by_key(|(base_depth, _)| *base_depth)
+        .map(|(_, file)| file.clone())
 }
 
 /// The file `{% import "..." as scope %}` brings in.
-fn import_of(text: &str, scope: &str, known: &[PathBuf]) -> Option<PathBuf> {
-    tags(text).find_map(|(_, tag)| {
-        let words: Vec<&str> = tag.split_whitespace().collect();
-        (words.first() == Some(&"import") && words.last() == Some(&scope))
-            .then(|| quoted(tag).and_then(|name| resolve(name, known)))
-            .flatten()
+fn import_of(text: &str, from: &Path, scope: &str, known: &[PathBuf]) -> Option<PathBuf> {
+    tags(text).find_map(|(at, tag)| {
+        let words = words(tag, at);
+        (words.first().map(|(word, _)| *word) == Some("import")
+            && words.last().map(|(word, _)| *word) == Some(scope))
+        .then(|| quoted(tag, at).and_then(|(name, _)| resolve(name, from, known)))
+        .flatten()
     })
 }
 
 /// The file `{% extends "..." %}` names.
-fn extends_of(text: &str, known: &[PathBuf]) -> Option<PathBuf> {
-    tags(text).find_map(|(_, tag)| {
+fn extends_of(text: &str, from: &Path, known: &[PathBuf]) -> Option<PathBuf> {
+    tags(text).find_map(|(at, tag)| {
         tag.starts_with("extends")
-            .then(|| quoted(tag).and_then(|name| resolve(name, known)))
+            .then(|| quoted(tag, at).and_then(|(name, _)| resolve(name, from, known)))
             .flatten()
     })
 }
@@ -124,20 +154,14 @@ fn extends_of(text: &str, known: &[PathBuf]) -> Option<PathBuf> {
 /// The range of `name` in the first `{% keyword name ... %}` tag.
 fn find_tag(text: &str, keyword: &str, name: &str) -> Option<Range<usize>> {
     tags(text).find_map(|(start, tag)| {
-        let mut words = tag.split_whitespace();
-        if words.next() != Some(keyword) {
-            return None;
-        }
-        let word = words.next()?;
-        if word.split('(').next() != Some(name) {
-            return None;
-        }
-        let at = start + text[start..].find(name)?;
-        Some(at..at + name.len())
+        let words = words(tag, start);
+        let (first, _) = *words.first()?;
+        let (word, at) = *words.get(1)?;
+        (first == keyword && word.split('(').next() == Some(name)).then(|| at..at + name.len())
     })
 }
 
-/// Each `{% ... %}` tag: where its inside starts, and its trimmed inside.
+/// Each `{% ... %}` tag: where its trimmed inside starts, and the inside.
 fn tags(text: &str) -> impl Iterator<Item = (usize, &str)> {
     let mut rest = 0;
     std::iter::from_fn(move || {
@@ -145,9 +169,9 @@ fn tags(text: &str) -> impl Iterator<Item = (usize, &str)> {
         let close = open + text[open..].find("%}")?;
         rest = close + 2;
         let inside = &text[open + 2..close];
-        let trimmed = inside.trim_start_matches(['-', '+', '~']);
+        let trimmed = inside.trim_start_matches(['-', '+', '~']).trim_start();
         let start = open + 2 + (inside.len() - trimmed.len());
-        Some((start, trimmed.trim_end_matches(['-', '+', '~']).trim()))
+        Some((start, trimmed.trim_end_matches(['-', '+', '~']).trim_end()))
     })
 }
 
@@ -162,11 +186,15 @@ mod tests {
         HashMap::from([
             (
                 PathBuf::from("/t/base.html"),
-                "<title>{% block title %}x{% endblock %}</title>".to_owned(),
+                "<title>{% block c %}x{% endblock %}</title>".to_owned(),
+            ),
+            (
+                PathBuf::from("/t/admin/base.html"),
+                "{% block c %}admin{% endblock %}".to_owned(),
             ),
             (
                 PathBuf::from("/t/macros.html"),
-                "{% macro row(x) %}<li>{{ x }}</li>{% endmacro %}".to_owned(),
+                "{% macro m(x) %}<li>{{ x }}</li>{% endmacro %}".to_owned(),
             ),
         ])
     }
@@ -181,41 +209,45 @@ mod tests {
     }
 
     #[test]
-    fn a_path_in_extends_goes_to_the_file() {
+    fn a_path_resolves_beside_the_template_not_in_a_deeper_directory() {
         let target = go("{% extends \"base.html\" %}", "base").expect("resolves");
-        assert_eq!(target.path, PathBuf::from("/t/base.html"));
+        assert_eq!(
+            target.path,
+            PathBuf::from("/t/base.html"),
+            "not /t/admin/base.html"
+        );
     }
 
     #[test]
-    fn a_scoped_call_goes_to_the_macro_in_the_imported_file() {
-        let text = "{% import \"macros.html\" as m %}{% call m::row(1) %}{% endcall %}";
-        let target = go(text, "m::row").expect("resolves");
+    fn a_scoped_call_goes_to_the_macros_name_not_its_keyword() {
+        let text = "{% import \"macros.html\" as s %}{% call s::m(1) %}{% endcall %}";
+        let target = go(text, "s::m").expect("resolves");
         assert_eq!(target.path, PathBuf::from("/t/macros.html"));
         let defined = &files()[&target.path];
         assert_eq!(
-            &defined[target.range.clone()],
-            "row",
-            "lands on the macro's name"
+            target.range.start,
+            defined.find("m(").expect("defined"),
+            "the name, not the `m` of `macro`"
         );
     }
 
     #[test]
-    fn a_local_call_goes_to_the_macro_in_the_same_file() {
-        let text = "{% macro cell() %}{% endmacro %}{% call cell() %}{% endcall %}";
-        let target = go(text, "call cell").expect("resolves");
-        assert_eq!(&text[target.range.clone()], "cell");
+    fn an_argument_of_a_call_is_left_to_rust_analyzer() {
+        let text = "{% macro m(x) %}{% endmacro %}{% call m(user.name) %}{% endcall %}";
+        assert_eq!(go(text, "name"), None);
+    }
+
+    #[test]
+    fn an_overriding_block_goes_to_the_parents_block_name() {
+        let text = "{% extends \"base.html\" %}{% block c %}y{% endblock %}";
+        let target = go(text, "c %}y").expect("resolves");
+        assert_eq!(target.path, PathBuf::from("/t/base.html"));
+        let defined = &files()[&target.path];
         assert_eq!(
             target.range.start,
-            text.find("cell").expect("defined"),
-            "the definition, not the call"
+            defined.find("c %}").expect("defined"),
+            "the name, not the `c` of `block`"
         );
-    }
-
-    #[test]
-    fn an_overriding_block_goes_to_the_block_in_the_parent() {
-        let text = "{% extends \"base.html\" %}{% block title %}y{% endblock %}";
-        let target = go(text, "block title").expect("resolves");
-        assert_eq!(target.path, PathBuf::from("/t/base.html"));
     }
 
     #[test]

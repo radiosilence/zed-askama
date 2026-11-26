@@ -112,7 +112,7 @@ pub fn spot(text: &str, offset: usize) -> Spot<'_> {
         }
         let quote = inside.rfind('"');
         if let Some(quote) = quote
-            && inside[..quote].matches('"').count() % 2 == 0
+            && inside[..quote].matches('"').count().is_multiple_of(2)
         {
             let keyword = inside[..quote].trim();
             if matches!(keyword, "extends" | "include" | "import") {
@@ -122,7 +122,14 @@ pub fn spot(text: &str, offset: usize) -> Spot<'_> {
             }
         }
     }
-    let in_expression = tag.is_some()
+    // A `when` arm's `|` separates patterns; no filter goes there.
+    let in_pattern = tag.is_some_and(|open| {
+        before[open + 2..]
+            .trim_start_matches(['-', '+', '~'])
+            .trim_start()
+            .starts_with("when")
+    });
+    let in_expression = tag.is_some() && !in_pattern
         || before
             .rfind("{{")
             .is_some_and(|open| !before[open..].contains("}}"));
@@ -202,6 +209,29 @@ pub fn filters() -> Vec<CompletionItem> {
         .collect()
 }
 
+/// The directories askama looks for a package's templates in: `askama.toml`'s
+/// `[general] dirs`, relative to the package, or `templates` when it names none.
+pub fn template_dirs(manifest_dir: &Path, config: Option<&str>) -> Vec<PathBuf> {
+    let named: Vec<PathBuf> = config
+        .and_then(|config| {
+            let rest = &config[config.find("dirs")?..];
+            let list = &rest[rest.find('[')? + 1..rest.find(']')?];
+            Some(
+                list.split(',')
+                    .map(|dir| dir.trim().trim_matches(['"', '\'']))
+                    .filter(|dir| !dir.is_empty())
+                    .map(|dir| manifest_dir.join(dir))
+                    .collect(),
+            )
+        })
+        .unwrap_or_default();
+    if named.is_empty() {
+        vec![manifest_dir.join("templates")]
+    } else {
+        named
+    }
+}
+
 /// The template files under `dirs`, as the relative paths a tag names them by.
 pub fn paths(dirs: &[PathBuf]) -> Vec<CompletionItem> {
     let mut found = Vec::new();
@@ -231,10 +261,11 @@ fn walk(root: &Path, dir: &Path, depth: usize, found: &mut Vec<String>) {
         return;
     }
     for entry in entries.flatten() {
-        let Ok(kind) = entry.file_type() else {
+        let path = entry.path();
+        // Followed through symbolic links, as askama follows them; the depth bounds a loop.
+        let Ok(kind) = std::fs::metadata(&path).map(|metadata| metadata.file_type()) else {
             continue;
         };
-        let path = entry.path();
         if kind.is_dir() {
             walk(root, &path, depth + 1, found);
         } else if kind.is_file()
@@ -247,7 +278,7 @@ fn walk(root: &Path, dir: &Path, depth: usize, found: &mut Vec<String>) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Spot, keywords, spot};
+    use super::{Spot, keywords, spot, template_dirs};
 
     fn at(text: &str) -> (String, usize) {
         let offset = text.find('^').expect("the fixture marks the cursor with ^");
@@ -274,6 +305,22 @@ mod tests {
         assert_eq!(spot(&text, offset), Spot::Filter { typed: "up" });
         let (text, offset) = at("{% if a || b^ %}");
         assert_eq!(spot(&text, offset), Spot::Other, "`||` is or, not a filter");
+    }
+
+    #[test]
+    fn a_pipe_between_patterns_is_not_a_filter() {
+        let (text, offset) = at("{% match x %}{% when Some(a) | No^ %}");
+        assert_eq!(spot(&text, offset), Spot::Other);
+    }
+
+    #[test]
+    fn askama_toml_dirs_replace_templates() {
+        let root = std::path::Path::new("/p");
+        assert_eq!(
+            template_dirs(root, Some("[general]\ndirs = [\"views\", 'more']\n")),
+            vec![root.join("views"), root.join("more")]
+        );
+        assert_eq!(template_dirs(root, None), vec![root.join("templates")]);
     }
 
     #[test]

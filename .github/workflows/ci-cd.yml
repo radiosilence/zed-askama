@@ -161,6 +161,9 @@ jobs:
             # patch, and its version follows the parser pin in Cargo.toml.
             touches '^vendor/|^scripts/vendor-askama\.py$|^Cargo\.toml$|^\.github/' || vendor=false
             touches '^\.github/(workflows|actions)/' || workflows=false
+            # editors/claude-code and .claude-plugin are manifests with no
+            # build; `versions`, which runs on every change, holds the plugin's
+            # version to the others.
             # A new advisory can land on any day against an unchanged
             # lockfile, so main audits every push; a pull request only when it
             # changes what is resolved or how the audit reads it.

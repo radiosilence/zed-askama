@@ -404,13 +404,22 @@ async fn completion(
             give_range(&mut items, replacing(typed));
         }
         complete::Spot::Path { typed } => {
+            // The innermost package holding the template, whose askama.toml askama reads.
             let dirs: Vec<PathBuf> = workspace
                 .analysis
                 .packages
                 .iter()
                 .filter(|package| path.starts_with(&package.manifest_dir))
-                .map(|package| package.manifest_dir.join("templates"))
-                .collect();
+                .max_by_key(|package| package.manifest_dir.components().count())
+                .map(|package| {
+                    let config = workspace
+                        .analysis
+                        .vfs
+                        .read(&package.manifest_dir.join("askama.toml"))
+                        .ok();
+                    complete::template_dirs(&package.manifest_dir, config.as_deref())
+                })
+                .unwrap_or_default();
             items = complete::paths(&dirs);
             give_range(&mut items, replacing(typed));
         }

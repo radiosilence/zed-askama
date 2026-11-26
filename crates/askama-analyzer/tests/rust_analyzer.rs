@@ -52,12 +52,13 @@ async fn a_field_the_struct_does_not_have_is_an_error_on_its_name_in_the_templat
     let problems = workspace.problems();
     let broken = fixture().join("templates/broken.html");
     let text = std::fs::read_to_string(&broken).expect("broken.html exists");
+    // rust-analyzer reports an unknown field on the whole field access.
     let list = problems
         .get(&broken)
         .unwrap_or_else(|| panic!("broken.html has no problem; all problems: {problems:?}"));
     assert!(
         list.iter()
-            .any(|problem| text[problem.range.clone()].contains("nme")),
+            .any(|problem| text[problem.range.clone()] == *"product.nme"),
         "no error covers `nme`: {list:?}"
     );
     assert!(
