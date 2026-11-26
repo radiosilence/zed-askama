@@ -371,7 +371,10 @@ fn a_compile_error_statement_is_located_in_the_generated_code() {
         r#"#[derive(Template)] #[template(path = "page.html")] struct Page { open: bool }"#,
         files,
     );
-    let error = generated.errors.first().expect("an unclosed `if` is an error");
+    let error = generated
+        .errors
+        .first()
+        .expect("an unclosed `if` is an error");
     let statement = &generated.code[error.generated.clone()];
     assert!(
         statement.contains("compile_error") && statement.trim_end().ends_with(';'),
