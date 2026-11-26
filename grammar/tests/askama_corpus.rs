@@ -73,11 +73,11 @@ fn rust_string_literal(text: &str) -> Option<(String, usize)> {
                 '\\' => decoded.push('\\'),
                 '\'' => decoded.push('\''),
                 '"' => decoded.push('"'),
-                '\n' => {
-                    while chars.next_if(|(_, c)| c.is_whitespace()).is_some() {}
-                }
+                '\n' => while chars.next_if(|(_, c)| c.is_whitespace()).is_some() {},
                 'x' => {
-                    let digits: String = (0..2).filter_map(|_| chars.next().map(|(_, c)| c)).collect();
+                    let digits: String = (0..2)
+                        .filter_map(|_| chars.next().map(|(_, c)| c))
+                        .collect();
                     decoded.push(char::from(u8::from_str_radix(&digits, 16).ok()?));
                 }
                 'u' => {
@@ -104,7 +104,10 @@ fn inline_sources(text: &str) -> Vec<(usize, String)> {
     while let Some(found) = text[search..].find("source") {
         let start = search + found;
         search = start + "source".len();
-        let before_is_word = text[..start].chars().next_back().is_some_and(|c| c.is_alphanumeric() || c == '_');
+        let before_is_word = text[..start]
+            .chars()
+            .next_back()
+            .is_some_and(|c| c.is_alphanumeric() || c == '_');
         let after = text[search..].trim_start();
         let Some(after) = after.strip_prefix('=').filter(|_| !before_is_word) else {
             continue;
@@ -115,11 +118,19 @@ fn inline_sources(text: &str) -> Vec<(usize, String)> {
         };
         let literal_end = literal_start + length;
         let attribute_start = text[..start].rfind("#[template(").unwrap_or(start);
-        let attribute_end = text[literal_end..].find(")]").map_or(literal_end, |end| literal_end + end);
-        let attribute = format!("{}{}", &text[attribute_start..start], &text[literal_end..attribute_end]);
-        let sets_syntax = attribute
-            .match_indices("syntax")
-            .any(|(at, _)| attribute[at + "syntax".len()..].trim_start().starts_with('='));
+        let attribute_end = text[literal_end..]
+            .find(")]")
+            .map_or(literal_end, |end| literal_end + end);
+        let attribute = format!(
+            "{}{}",
+            &text[attribute_start..start],
+            &text[literal_end..attribute_end]
+        );
+        let sets_syntax = attribute.match_indices("syntax").any(|(at, _)| {
+            attribute[at + "syntax".len()..]
+                .trim_start()
+                .starts_with('=')
+        });
         if !sets_syntax {
             sources.push((text[..start].matches('\n').count() + 1, source));
         }
@@ -156,7 +167,10 @@ fn corpus() -> (Vec<Input>, BTreeSet<String>) {
     let mut from_ui = BTreeSet::new();
     let mut from_elsewhere = BTreeSet::new();
 
-    for test in files_under(&root, "tests").into_iter().filter(|path| path.ends_with(".rs")) {
+    for test in files_under(&root, "tests")
+        .into_iter()
+        .filter(|path| path.ends_with(".rs"))
+    {
         let text = read(&root.join(&test));
         let names = referenced_templates(&text);
         if test.starts_with("tests/ui/") {
@@ -165,7 +179,10 @@ fn corpus() -> (Vec<Input>, BTreeSet<String>) {
             from_elsewhere.extend(names);
         }
         for (line, source) in inline_sources(&text) {
-            inputs.push(Input { name: format!("{test}:{line}"), source });
+            inputs.push(Input {
+                name: format!("{test}:{line}"),
+                source,
+            });
         }
     }
 
@@ -176,7 +193,10 @@ fn corpus() -> (Vec<Input>, BTreeSet<String>) {
         if from_elsewhere.contains(short) {
             from_elsewhere.extend(referenced_templates(&source));
         }
-        inputs.push(Input { name: template.clone(), source });
+        inputs.push(Input {
+            name: template.clone(),
+            source,
+        });
     }
     let compile_fail = templates
         .iter()
@@ -197,15 +217,25 @@ fn grammar_parser() -> Parser {
 
 /// The first `ERROR` or `MISSING` node in the tree, as `kind at row:column`.
 fn first_error(parser: &mut Parser, source: &str) -> Option<String> {
-    let tree = parser.parse(source, None).expect("no timeout or cancellation is set");
+    let tree = parser
+        .parse(source, None)
+        .expect("no timeout or cancellation is set");
     if !tree.root_node().has_error() {
         return None;
     }
     fn find(node: Node<'_>) -> Option<String> {
         if node.is_error() || node.is_missing() {
             let position = node.start_position();
-            let kind = if node.is_missing() { format!("MISSING {}", node.kind()) } else { "ERROR".to_owned() };
-            return Some(format!("{kind} at {}:{}", position.row + 1, position.column + 1));
+            let kind = if node.is_missing() {
+                format!("MISSING {}", node.kind())
+            } else {
+                "ERROR".to_owned()
+            };
+            return Some(format!(
+                "{kind} at {}:{}",
+                position.row + 1,
+                position.column + 1
+            ));
         }
         let mut cursor = node.walk();
         node.children(&mut cursor).find_map(find)
@@ -216,7 +246,14 @@ fn first_error(parser: &mut Parser, source: &str) -> Option<String> {
 fn askama_accepts(source: &str) -> Result<(), String> {
     askama_parser::Ast::from_str(source, None, &askama_parser::Syntax::default())
         .map(|_| ())
-        .map_err(|error| error.to_string().lines().next().unwrap_or_default().to_owned())
+        .map_err(|error| {
+            error
+                .to_string()
+                .lines()
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
 }
 
 fn divergences() -> BTreeMap<String, String> {
@@ -246,11 +283,23 @@ fn on_large_stack(test: impl FnOnce() + Send + 'static) {
 #[test]
 fn the_vendored_suite_yields_templates_and_inline_sources() {
     let (inputs, compile_fail) = corpus();
-    let templates = inputs.iter().filter(|input| input.name.starts_with("templates/")).count();
+    let templates = inputs
+        .iter()
+        .filter(|input| input.name.starts_with("templates/"))
+        .count();
     let inline = inputs.len() - templates;
-    assert!(templates > 100, "found only {templates} templates in vendor/askama-testing");
-    assert!(inline > 500, "extracted only {inline} inline sources from vendor/askama-testing");
-    assert!(compile_fail.contains("templates/invalid_syntax.html"), "invalid_syntax.html is not marked compile-fail");
+    assert!(
+        templates > 100,
+        "found only {templates} templates in vendor/askama-testing"
+    );
+    assert!(
+        inline > 500,
+        "extracted only {inline} inline sources from vendor/askama-testing"
+    );
+    assert!(
+        compile_fail.contains("templates/invalid_syntax.html"),
+        "invalid_syntax.html is not marked compile-fail"
+    );
 }
 
 #[test]
@@ -260,9 +309,15 @@ fn every_valid_askama_template_parses_without_errors() {
     let failures: Vec<String> = inputs
         .iter()
         .filter(|input| input.name.starts_with("templates/") && !compile_fail.contains(&input.name))
-        .filter_map(|input| first_error(&mut parser, &input.source).map(|error| format!("{}: {error}", input.name)))
+        .filter_map(|input| {
+            first_error(&mut parser, &input.source).map(|error| format!("{}: {error}", input.name))
+        })
         .collect();
-    assert!(failures.is_empty(), "valid askama templates failed to parse:\n{}", failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "valid askama templates failed to parse:\n{}",
+        failures.join("\n")
+    );
 }
 
 #[test]
@@ -279,14 +334,25 @@ fn the_grammar_accepts_exactly_what_askama_parser_accepts() {
             let diverges = askama.is_ok() != grammar.is_none();
             match (diverges, listed.remove(&name).is_some()) {
                 (true, false) => unexpected.push(match askama {
-                    Ok(()) => format!("{name}: askama accepts it, the grammar finds {}", grammar.unwrap_or_default()),
-                    Err(error) => format!("{name}: askama rejects it ({error}), the grammar accepts it"),
+                    Ok(()) => format!(
+                        "{name}: askama accepts it, the grammar finds {}",
+                        grammar.unwrap_or_default()
+                    ),
+                    Err(error) => {
+                        format!("{name}: askama rejects it ({error}), the grammar accepts it")
+                    }
                 }),
-                (false, true) => unexpected.push(format!("{name}: listed as a divergence but both now agree")),
+                (false, true) => {
+                    unexpected.push(format!("{name}: listed as a divergence but both now agree"))
+                }
                 _ => {}
             }
         }
-        unexpected.extend(listed.into_keys().map(|name| format!("{name}: listed as a divergence but not in the suite")));
+        unexpected.extend(
+            listed
+                .into_keys()
+                .map(|name| format!("{name}: listed as a divergence but not in the suite")),
+        );
 
         assert!(
             unexpected.is_empty(),
