@@ -1,0 +1,46 @@
+error: `length` argument is missing when calling `truncate` filter; its arguments are: (length)
+ --> NoArgument.html:1:8
+       "| truncate }}"
+ --> tests/ui/truncate.rs:4:21
+  |
+4 | #[template(source = r#"{{ text | truncate }}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `truncate` filter accepts at most 1 argument; its arguments are: (length)
+ --> TooManyArguments.html:1:27
+       "extra) }}"
+  --> tests/ui/truncate.rs:17:21
+   |
+17 | #[template(source = r#"{{ text | truncate(length, extra) }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `usize: TryFrom<f32>` is not satisfied
+ --> tests/ui/truncate.rs:9:10
+  |
+9 | #[derive(Template)]
+  |          ^^^^^^^^ the trait `From<f32>` is not implemented for `usize`
+  |
+help: `usize` implements trait `From<T>`
+ --> $RUST/core/src/convert/num.rs
+  |
+  = note: `From<bool>`
+ ::: $RUST/core/src/convert/num.rs
+  |
+  = note: in this macro invocation
+ ::: $RUST/core/src/convert/num.rs
+  |
+  = note: `From<u16>`
+  |
+  = note: `From<u8>`
+ ::: $RUST/core/src/convert/num.rs
+  |
+  = note: in this macro invocation
+ ::: $RUST/core/src/convert/num.rs
+  |
+  = note: in this macro invocation
+ --> $RUST/core/src/mem/alignment.rs
+  |
+  = note: `From<std::mem::Alignment>`
+  = note: required for `f32` to implement `Into<usize>`
+  = note: required for `usize` to implement `TryFrom<f32>`
+  = note: this error originates in the derive macro `Template` which comes from the expansion of the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)

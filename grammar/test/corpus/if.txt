@@ -1,0 +1,129 @@
+================================================================================
+If takes else if, elif and else branches
+================================================================================
+{% if a %}A{% else if b %}B{% elif c %}C{% else %}D{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (content)
+    (else_if_clause
+      (else_if_tag
+        (identifier))
+      (content))
+    (else_if_clause
+      (else_if_tag
+        (identifier))
+      (content))
+    (else_clause
+      (else_tag)
+      (content))
+    (endif_tag))
+  (content))
+
+================================================================================
+If let binds a pattern
+================================================================================
+{% if let Some(x) = y %}{{ x }}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (let_condition
+        (tuple_struct_pattern
+          (identifier)
+          (identifier))
+        (identifier)))
+    (expression_tag
+      (identifier))
+    (endif_tag))
+  (content))
+
+================================================================================
+If let chains with other conditions
+================================================================================
+{% if a && let Some(x) = b && let Ok(y) = x %}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (let_chain
+        (identifier)
+        (let_condition
+          (tuple_struct_pattern
+            (identifier)
+            (identifier))
+          (let_chain
+            (identifier)
+            (let_condition
+              (tuple_struct_pattern
+                (identifier)
+                (identifier))
+              (identifier))))))
+    (endif_tag))
+  (content))
+
+================================================================================
+Else if let binds a pattern
+================================================================================
+{% if a %}{% else if let Some(x) = b %}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (else_if_clause
+      (else_if_tag
+        (let_condition
+          (tuple_struct_pattern
+            (identifier)
+            (identifier))
+          (identifier))))
+    (endif_tag))
+  (content))
+
+================================================================================
+Set may stand for let in a condition
+================================================================================
+{% if set Some(x) = y %}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (let_condition
+        (tuple_struct_pattern
+          (identifier)
+          (identifier))
+        (identifier)))
+    (endif_tag))
+  (content))
+
+================================================================================
+If blocks nest
+================================================================================
+{% if a %}{% if b %}x{% endif %}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (identifier))
+    (if_block
+      (if_tag
+        (identifier))
+      (content)
+      (endif_tag))
+    (endif_tag))
+  (content))

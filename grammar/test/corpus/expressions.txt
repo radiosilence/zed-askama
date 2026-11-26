@@ -1,0 +1,330 @@
+================================================================================
+Binary operators follow askama's precedence
+================================================================================
+{{ a || b && c == d bitor e xor f bitand g << h + i ~ j * k }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (binary_expression
+      (identifier)
+      (binary_expression
+        (identifier)
+        (binary_expression
+          (identifier)
+          (binary_expression
+            (identifier)
+            (binary_expression
+              (identifier)
+              (binary_expression
+                (identifier)
+                (binary_expression
+                  (identifier)
+                  (binary_expression
+                    (identifier)
+                    (binary_expression
+                      (identifier)
+                      (binary_expression
+                        (identifier)
+                        (identifier))))))))))))
+  (content))
+
+================================================================================
+Concatenation is a binary operator
+================================================================================
+{{ a ~ b ~ c }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (binary_expression
+      (binary_expression
+        (identifier)
+        (identifier))
+      (identifier)))
+  (content))
+
+================================================================================
+Prefix operators bind tighter than filters
+================================================================================
+{{ -x|abs }}{{ !y }}{{ *z }}{{ &w }}{{ &&v }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (filter_expression
+      (unary_expression
+        (identifier))
+      (filter
+        (identifier))))
+  (expression_tag
+    (unary_expression
+      (identifier)))
+  (expression_tag
+    (unary_expression
+      (identifier)))
+  (expression_tag
+    (reference_expression
+      (identifier)))
+  (expression_tag
+    (reference_expression
+      (reference_expression
+        (identifier))))
+  (content))
+
+================================================================================
+Field access, indexing, calls and try chain as suffixes
+================================================================================
+{{ loop.index }}{{ a.0.b[1]?.c(d) }}{{ self.items.len() }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (field_expression
+      (identifier)
+      (field_identifier)))
+  (expression_tag
+    (call_expression
+      (field_expression
+        (try_expression
+          (index_expression
+            (field_expression
+              (field_expression
+                (identifier)
+                (integer_literal))
+              (field_identifier))
+            (integer_literal)))
+        (field_identifier))
+      (arguments
+        (identifier))))
+  (expression_tag
+    (call_expression
+      (field_expression
+        (field_expression
+          (identifier)
+          (field_identifier))
+        (field_identifier))
+      (arguments)))
+  (content))
+
+================================================================================
+Ranges may omit either end, including in an index
+================================================================================
+{{ foo[..] }}{{ foo[1..] }}{{ foo[..=n] }}{{ a..b }}{{ ..c }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (index_expression
+      (identifier)
+      (range_expression)))
+  (expression_tag
+    (index_expression
+      (identifier)
+      (range_expression
+        (integer_literal))))
+  (expression_tag
+    (index_expression
+      (identifier)
+      (range_expression
+        (identifier))))
+  (expression_tag
+    (range_expression
+      (identifier)
+      (identifier)))
+  (expression_tag
+    (range_expression
+      (identifier)))
+  (content))
+
+================================================================================
+Paths take turbofish generics
+================================================================================
+{{ Vec::<u8>::new() }}{{ ::std::mem::take(x) }}{{ x.parse::<i32>() }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (call_expression
+      (scoped_identifier
+        (generic_type
+          (identifier)
+          (type_arguments
+            (primitive_type)))
+        (identifier))
+      (arguments)))
+  (expression_tag
+    (call_expression
+      (scoped_identifier
+        (scoped_identifier
+          (scoped_identifier
+            (identifier))
+          (identifier))
+        (identifier))
+      (arguments
+        (identifier))))
+  (expression_tag
+    (call_expression
+      (generic_function
+        (field_expression
+          (identifier)
+          (field_identifier))
+        (type_arguments
+          (primitive_type)))
+      (arguments)))
+  (content))
+
+================================================================================
+Calls take named arguments
+================================================================================
+{{ m(a, b = 1, c = "x",) }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (call_expression
+      (identifier)
+      (arguments
+        (identifier)
+        (named_argument
+          (identifier)
+          (integer_literal))
+        (named_argument
+          (identifier)
+          (string_literal
+            (string_content))))))
+  (content))
+
+================================================================================
+Struct literals take shorthand, named and base fields
+================================================================================
+{{ Point { x, y: 2, ..Default::default() } }}{{ T { 0: a } }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (shorthand_field_initializer
+          (identifier))
+        (field_initializer
+          (field_identifier)
+          (integer_literal))
+        (base_field_initializer
+          (call_expression
+            (scoped_identifier
+              (identifier)
+              (identifier))
+            (arguments))))))
+  (expression_tag
+    (struct_expression
+      (type_identifier)
+      (field_initializer_list
+        (field_initializer
+          (integer_literal)
+          (identifier)))))
+  (content))
+
+================================================================================
+Tuples, groups, unit and arrays are distinct
+================================================================================
+{{ () }}{{ (a) }}{{ (a,) }}{{ (a, b) }}{{ [] }}{{ [1, 2,] }}{{ [0; 4] }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (unit_expression))
+  (expression_tag
+    (parenthesized_expression
+      (identifier)))
+  (expression_tag
+    (tuple_expression
+      (identifier)))
+  (expression_tag
+    (tuple_expression
+      (identifier)
+      (identifier)))
+  (expression_tag
+    (array_expression))
+  (expression_tag
+    (array_expression
+      (integer_literal)
+      (integer_literal)))
+  (expression_tag
+    (array_expression
+      (integer_literal)
+      (integer_literal)))
+  (content))
+
+================================================================================
+is defined tests a variable
+================================================================================
+{% if x is defined && y is not defined %}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (binary_expression
+        (is_defined_expression
+          (identifier))
+        (is_defined_expression
+          (identifier))))
+    (endif_tag))
+  (content))
+
+================================================================================
+as casts to a primitive type
+================================================================================
+{{ x as u8 }}{{ (a + b) as f64 }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (expression_tag
+    (type_cast_expression
+      (identifier)
+      (primitive_type)))
+  (expression_tag
+    (type_cast_expression
+      (parenthesized_expression
+        (binary_expression
+          (identifier)
+          (identifier)))
+      (primitive_type)))
+  (content))
+
+================================================================================
+A comparison of a variable named after a keyword is an expression
+================================================================================
+{% if set == 1 %}{% endif %}{% if let.is_some() %}{% endif %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (if_block
+    (if_tag
+      (binary_expression
+        (identifier)
+        (integer_literal)))
+    (endif_tag))
+  (if_block
+    (if_tag
+      (call_expression
+        (field_expression
+          (identifier)
+          (field_identifier))
+        (arguments)))
+    (endif_tag))
+  (content))

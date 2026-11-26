@@ -1,0 +1,71 @@
+error: Filter function missing required input and environment arguments. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`
+ --> tests/ui/filter-signature-validation.rs:3:19
+  |
+3 |     pub fn filter0() -> askama::Result<String> {
+  |                   ^
+
+error: Filter function missing required environment argument. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`
+ --> tests/ui/filter-signature-validation.rs:8:19
+  |
+8 |     pub fn filter1(input: usize) -> askama::Result<String> {
+  |                   ^
+
+error: Filter function missing required environment argument. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`
+  --> tests/ui/filter-signature-validation.rs:13:19
+   |
+13 |     pub fn filter2(_: &dyn askama::Values) -> askama::Result<String> {
+   |                   ^
+
+error: Const generics are currently not supported for filters
+  --> tests/ui/filter-signature-validation.rs:20:20
+   |
+20 |     pub fn filter0<const T: bool>(input: usize, _: &dyn askama::Values) -> askama::Result<String> {
+   |                    ^^^^^
+
+error: Filter functions don't support generic parameter defaults
+  --> tests/ui/filter-signature-validation.rs:27:24
+   |
+27 |     pub fn filter0<T = f64>(
+   |                        ^^^
+
+error: Filter function is missing return type
+  --> tests/ui/filter-signature-validation.rs:38:56
+   |
+38 |     pub fn filter0(input: usize, _: &dyn askama::Values) {}
+   |                                                        ^
+
+error: Only conventional function arguments are supported
+  --> tests/ui/filter-signature-validation.rs:47:9
+   |
+47 |         Wrapper(arg): Wrapper,
+   |         ^^^^^^^
+
+error: Impl generics are currently not supported for filters
+  --> tests/ui/filter-signature-validation.rs:58:14
+   |
+58 |         arg: impl std::fmt::Display,
+   |              ^^^^
+
+error: All required arguments must appear before any optional ones
+  --> tests/ui/filter-signature-validation.rs:70:9
+   |
+70 |         req_arg: usize,
+   |         ^^^^^^^
+
+error: Impl generics are currently not supported for filters
+  --> tests/ui/filter-signature-validation.rs:81:36
+   |
+81 |         #[optional(1337)] opt_arg: impl std::fmt::Display,
+   |                                    ^^^^
+
+error: Optional arguments must not use generic parameters
+  --> tests/ui/filter-signature-validation.rs:90:41
+   |
+90 |         #[optional(1337usize)] opt_arg: T,
+   |                                         ^
+
+error: Optional arguments must not use generic parameters
+  --> tests/ui/filter-signature-validation.rs:99:48
+   |
+99 |         #[optional(1337usize)] opt_arg: Option<T>,
+   |                                                ^

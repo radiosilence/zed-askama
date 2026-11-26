@@ -1,0 +1,119 @@
+error: unclosed expression, missing "}}"
+ --> <source attribute>:1:0
+       "{{ expr"
+ --> tests/ui/unclosed-nodes.rs:4:21
+  |
+4 | #[template(source = "{{ expr", ext = "txt")]
+  |                     ^^^^^^^^^
+
+error: unclosed expression, missing "}}"
+ --> <source attribute>:1:0
+       "{{ expr "
+ --> tests/ui/unclosed-nodes.rs:8:21
+  |
+8 | #[template(source = "{{ expr ", ext = "txt")]
+  |                     ^^^^^^^^^^
+
+error: unclosed expression, missing "}}"
+ --> <source attribute>:1:0
+       "{{ expr -"
+  --> tests/ui/unclosed-nodes.rs:12:21
+   |
+12 | #[template(source = "{{ expr -", ext = "txt")]
+   |                     ^^^^^^^^^^^
+
+error: the token `}` was not expected at this point in the expression
+ --> <source attribute>:1:9
+       "}"
+  --> tests/ui/unclosed-nodes.rs:16:21
+   |
+16 | #[template(source = "{{ expr -}", ext = "txt")]
+   |                     ^^^^^^^^^^^^
+
+error: expected `=`, `:` or `%}` after variable name
+ --> <source attribute>:1:3
+       "let x"
+  --> tests/ui/unclosed-nodes.rs:20:21
+   |
+20 | #[template(source = "{% let x", ext = "txt")]
+   |                     ^^^^^^^^^^
+
+error: expected `=`, `:` or `%}` after variable name
+ --> <source attribute>:1:3
+       "let x "
+  --> tests/ui/unclosed-nodes.rs:24:21
+   |
+24 | #[template(source = "{% let x ", ext = "txt")]
+   |                     ^^^^^^^^^^^
+
+error: expected `=`, `:` or `%}` after variable name
+ --> <source attribute>:1:3
+       "let x -"
+  --> tests/ui/unclosed-nodes.rs:28:21
+   |
+28 | #[template(source = "{% let x -", ext = "txt")]
+   |                     ^^^^^^^^^^^^
+
+error: expected `=`, `:` or `%}` after variable name
+ --> <source attribute>:1:3
+       "let x -%"
+  --> tests/ui/unclosed-nodes.rs:32:21
+   |
+32 | #[template(source = "{% let x -%", ext = "txt")]
+   |                     ^^^^^^^^^^^^^
+
+error: unclosed block, missing "%}"
+ --> <source attribute>:1:0
+       "{% let x %}{% endlet"
+  --> tests/ui/unclosed-nodes.rs:36:21
+   |
+36 | #[template(source = "{% let x %}{% endlet", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `endlet` to terminate `let` node, found `endset`
+ --> <source attribute>:1:14
+       "endset %}"
+  --> tests/ui/unclosed-nodes.rs:40:21
+   |
+40 | #[template(source = "{% let x %}{% endset %}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `endset` to terminate `set` node, found `endlet`
+ --> <source attribute>:1:14
+       "endlet %}"
+  --> tests/ui/unclosed-nodes.rs:44:21
+   |
+44 | #[template(source = "{% set x %}{% endlet %}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unclosed comment, missing "#}"
+ --> <source attribute>:1:0
+       "{# comment"
+  --> tests/ui/unclosed-nodes.rs:48:21
+   |
+48 | #[template(source = "{# comment", ext = "txt")]
+   |                     ^^^^^^^^^^^^
+
+error: unclosed comment, missing "#}"
+ --> <source attribute>:1:0
+       "{# comment "
+  --> tests/ui/unclosed-nodes.rs:52:21
+   |
+52 | #[template(source = "{# comment ", ext = "txt")]
+   |                     ^^^^^^^^^^^^^
+
+error: unclosed comment, missing "#}"
+ --> <source attribute>:1:0
+       "{# comment -"
+  --> tests/ui/unclosed-nodes.rs:56:21
+   |
+56 | #[template(source = "{# comment -", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^
+
+error: unclosed comment, missing "#}"
+ --> <source attribute>:1:0
+       "{# comment -#"
+  --> tests/ui/unclosed-nodes.rs:60:21
+   |
+60 | #[template(source = "{# comment -#", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^

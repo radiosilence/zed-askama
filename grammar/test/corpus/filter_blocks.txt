@@ -1,0 +1,50 @@
+================================================================================
+Filter blocks take filter chains
+================================================================================
+{% filter lower|capitalize %}TEXT{% endfilter %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (filter_block
+    (filter_tag
+      (filter
+        (identifier))
+      (filter
+        (identifier)))
+    (content)
+    (endfilter_tag))
+  (content))
+
+================================================================================
+Filter blocks take path filters with arguments
+================================================================================
+{% filter kit::wrap(kit::Disclosure::new("x").open(y)) %}body{% endfilter %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (filter_block
+    (filter_tag
+      (filter
+        (scoped_identifier
+          (identifier)
+          (identifier))
+        (arguments
+          (call_expression
+            (field_expression
+              (call_expression
+                (scoped_identifier
+                  (scoped_identifier
+                    (identifier)
+                    (identifier))
+                  (identifier))
+                (arguments
+                  (string_literal
+                    (string_content))))
+              (field_identifier))
+            (arguments
+              (identifier))))))
+    (content)
+    (endfilter_tag))
+  (content))
