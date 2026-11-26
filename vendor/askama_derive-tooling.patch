@@ -82,7 +82,7 @@ index 2beb90d..35f3ba3 100644
  
  fn str_set(vals: &[&'static str]) -> Vec<Cow<'static, str>> {
 diff --git a/src/generator/helpers/macro_invocation.rs b/src/generator/helpers/macro_invocation.rs
-index 6a472be..0f37013 100644
+index 6a472be..347b9e9 100644
 --- a/src/generator/helpers/macro_invocation.rs
 +++ b/src/generator/helpers/macro_invocation.rs
 @@ -84,7 +84,14 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
@@ -101,6 +101,20 @@ index 6a472be..0f37013 100644
              let content = content.into_token_stream();
              quote_into!(buf, self.callsite_ctx.span_for_node(self.callsite_span), {{ #content }});
  
+@@ -140,7 +147,12 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
+ 
+                 // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
+                 // stuff like `x.y`, how is this supposed to match a variable? O.o
+-                let associated_item = associated_item_buf.into_token_stream().to_string();
++                let mut associated_item = associated_item_buf.into_token_stream().to_string();
++                if crate::tooling::active() {
++                    // Outside a compiler proc-macro2 prints `x.y` as `x . y`, but the lookup
++                    // below and `write_resolved` split on `.` and expect the compiler's `x.y`.
++                    associated_item.retain(|c| !c.is_whitespace());
++                }
+                 let var = generator
+                     .locals
+                     .resolve(&associated_item)
 diff --git a/src/generator/node.rs b/src/generator/node.rs
 index 3526774..87831eb 100644
 --- a/src/generator/node.rs

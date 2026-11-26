@@ -341,6 +341,44 @@ fn generated_code_is_valid_rust() {
         .unwrap_or_else(|err| panic!("not valid Rust: {err}\n{}", generated.code));
 }
 
+/// koan's pages pass a loop variable's field to an imported macro. askama turns that argument
+/// into a string and splits it on `.`, which only works when it is printed as the compiler
+/// prints it.
+#[test]
+fn a_macro_argument_that_is_a_field_of_a_loop_variable_generates() {
+    let files = Memory::with(&[(
+        "templates/page.html",
+        "{% macro row(label) %}<li>{{ label }}</li>{% endmacro %}\
+         {% for a in items %}{% call row(a.name) %}{% endcall %}{% endfor %}",
+    )]);
+    let generated = run(
+        r#"#[derive(Template)] #[template(path = "page.html")] struct Page { items: Vec<Item> }"#,
+        files,
+    );
+    assert!(
+        generated.errors.is_empty(),
+        "unexpected errors: {:?}",
+        generated.errors
+    );
+    syn::parse_file(&generated.code)
+        .unwrap_or_else(|err| panic!("not valid Rust: {err}\n{}", generated.code));
+}
+
+#[test]
+fn a_compile_error_statement_is_located_in_the_generated_code() {
+    let files = Memory::with(&[("templates/page.html", "{% if open %}")]);
+    let generated = run(
+        r#"#[derive(Template)] #[template(path = "page.html")] struct Page { open: bool }"#,
+        files,
+    );
+    let error = generated.errors.first().expect("an unclosed `if` is an error");
+    let statement = &generated.code[error.generated.clone()];
+    assert!(
+        statement.contains("compile_error") && statement.trim_end().ends_with(';'),
+        "the range covers the whole `compile_error!` statement, not {statement:?}"
+    );
+}
+
 #[test]
 fn a_syntax_error_is_reported_where_the_parser_stopped_in_the_template() {
     let template = "<p>{% if ready %}</p>";

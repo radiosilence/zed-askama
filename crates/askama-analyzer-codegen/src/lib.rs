@@ -70,6 +70,9 @@ pub struct GenerationError {
     pub message: String,
     /// Where askama pointed, when it gave a location.
     pub origin: Option<Origin>,
+    /// The `compile_error!` statement in [`Generated::code`]. A caller that reports the error
+    /// itself blanks this range, so the code's analysis does not report it a second time.
+    pub generated: Range<usize>,
 }
 
 /// What askama generates for one item.
@@ -144,6 +147,8 @@ fn generate_located(input: Input<'_>, files: Rc<dyn Files>) -> Result<Generated,
         errors: Vec::new(),
         locate: &locate,
         glue: true,
+        statement_start: 0,
+        open_error: None,
     };
     printer.stream(expansion.tokens);
 
@@ -236,6 +241,10 @@ struct Printer<'a> {
     /// No space before the next token: after a joint punctuation mark, a `.` or an opening
     /// delimiter, and at the start.
     glue: bool,
+    /// Where the statement being printed starts: after the last `;`, `{` or `}`.
+    statement_start: usize,
+    /// The error whose `compile_error!` statement is being printed, until its `;`.
+    open_error: Option<usize>,
 }
 
 impl Printer<'_> {
@@ -256,6 +265,7 @@ impl Printer<'_> {
                     }
                     if group.delimiter() == Delimiter::Brace {
                         self.code.push('\n');
+                        self.statement_start = self.code.len();
                     }
                     self.stream(group.stream());
                     if !close.is_empty() {
@@ -265,6 +275,7 @@ impl Printer<'_> {
                     if group.delimiter() == Delimiter::Brace {
                         self.code.push('\n');
                         self.glue = true;
+                        self.statement_start = self.code.len();
                     }
                 }
                 TokenTree::Ident(ident) => {
@@ -279,8 +290,12 @@ impl Printer<'_> {
                     self.word(mark.encode_utf8(&mut [0; 4]), punct.span());
                     self.glue = punct.spacing() == Spacing::Joint || mark == '.';
                     if mark == ';' && punct.spacing() == Spacing::Alone {
+                        if let Some(error) = self.open_error.take() {
+                            self.errors[error].generated.end = self.code.len();
+                        }
                         self.code.push('\n');
                         self.glue = true;
+                        self.statement_start = self.code.len();
                     }
                 }
                 TokenTree::Literal(literal) => self.word(&literal.to_string(), literal.span()),
@@ -316,9 +331,11 @@ impl Printer<'_> {
         };
         let message = syn::parse_str::<syn::LitStr>(&message.to_string())
             .map_or_else(|_| message.to_string(), |literal| literal.value());
+        self.open_error = Some(self.errors.len());
         self.errors.push(GenerationError {
             message,
             origin: self.locate.origin(ident.span()),
+            generated: self.statement_start..self.code.len(),
         });
     }
 }

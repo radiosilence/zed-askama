@@ -147,7 +147,12 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
 
                 // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
                 // stuff like `x.y`, how is this supposed to match a variable? O.o
-                let associated_item = associated_item_buf.into_token_stream().to_string();
+                let mut associated_item = associated_item_buf.into_token_stream().to_string();
+                if crate::tooling::active() {
+                    // Outside a compiler proc-macro2 prints `x.y` as `x . y`, but the lookup
+                    // below and `write_resolved` split on `.` and expect the compiler's `x.y`.
+                    associated_item.retain(|c| !c.is_whitespace());
+                }
                 let var = generator
                     .locals
                     .resolve(&associated_item)
