@@ -496,10 +496,16 @@ module.exports = grammar({
       field('name', choice(
         $.identifier,
         $.scoped_identifier,
-        alias($.generic_type_with_turbofish, $.generic_function),
+        alias($._generic_filter_name, $.generic_function),
       )),
       optional(field('arguments', $.arguments)),
     )),
+
+    _generic_filter_name: ($) => seq(
+      field('function', choice($.identifier, $.scoped_identifier)),
+      '::',
+      field('type_arguments', $.type_arguments),
+    ),
 
     unary_expression: ($) => prec(PREC.unary, seq(
       field('operator', choice('-', '!', '*')),
