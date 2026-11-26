@@ -22,6 +22,9 @@ enum Command {
     Check {
         #[arg(default_value = ".")]
         path: PathBuf,
+        /// Also have this rust-analyzer check the generated code, as the editor does.
+        #[arg(long, value_name = "PATH")]
+        rust_analyzer: Option<PathBuf>,
     },
 }
 
@@ -49,7 +52,10 @@ fn main() -> ExitCode {
     };
     let result = match cli.command.unwrap_or(Command::Lsp) {
         Command::Lsp => runtime.block_on(askama_analyzer::server::run()),
-        Command::Check { path } => runtime.block_on(askama_analyzer::check::run(&path)),
+        Command::Check {
+            path,
+            rust_analyzer,
+        } => runtime.block_on(askama_analyzer::check::run(&path, rust_analyzer)),
     };
     match result {
         Ok(code) => code,

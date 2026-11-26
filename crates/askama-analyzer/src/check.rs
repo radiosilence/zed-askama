@@ -1,22 +1,63 @@
 //! `askama-analyzer check`: the language server's template errors, printed for a terminal or
-//! CI.
+//! CI. With `--rust-analyzer`, rust-analyzer checks the generated code as well, as it does in
+//! the editor.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use anyhow::Context;
+use anyhow::{Context, bail};
+use tokio::sync::Notify;
 
 use crate::analysis::Analysis;
 use crate::generator::Generator;
+use crate::ra::Config;
+use crate::text::Encoding;
 use crate::vfs::Vfs;
+use crate::workspace::Workspace;
 
-pub async fn run(root: &Path) -> anyhow::Result<ExitCode> {
+/// How long rust-analyzer may take to load the workspace. A cold start builds the workspace's
+/// build scripts and proc macros, which takes minutes on a large one.
+const LOAD: Duration = Duration::from_secs(15 * 60);
+/// rust-analyzer publishes each file's diagnostics as it gets to it; this much quiet means it
+/// has published them all.
+const QUIET: Duration = Duration::from_secs(5);
+
+pub async fn run(root: &Path, rust_analyzer: Option<PathBuf>) -> anyhow::Result<ExitCode> {
     let root = root
         .canonicalize()
         .with_context(|| format!("finding {}", root.display()))?;
+    let started = Instant::now();
     let analysis = Analysis::load(&root, Generator::spawn()?, Vfs::default()).await?;
+    let generated_in = started.elapsed();
+    let mut workspace = Workspace::new(analysis, Encoding::Utf8);
 
-    let problems = analysis.problems();
+    if let Some(path) = rust_analyzer {
+        let config = Config {
+            path: Some(path),
+            ..Config::default()
+        };
+        let wake = Arc::new(Notify::new());
+        if let Some(message) = workspace.start(&config, &wake).await {
+            bail!(message);
+        }
+        workspace.sync();
+        let loading = Instant::now();
+        let Some(session) = workspace.session() else {
+            bail!("rust-analyzer stopped while starting");
+        };
+        if !session.ready(LOAD).await {
+            bail!("rust-analyzer did not finish loading within {LOAD:?}");
+        }
+        while tokio::time::timeout(QUIET, wake.notified()).await.is_ok() {}
+        eprintln!(
+            "rust-analyzer loaded and checked in {:.1?}",
+            loading.elapsed()
+        );
+    }
+
+    let problems = workspace.problems();
     let mut count = 0;
     for (path, list) in &problems {
         let text = std::fs::read_to_string(path).unwrap_or_default();
@@ -27,14 +68,14 @@ pub async fn run(root: &Path) -> anyhow::Result<ExitCode> {
             count += 1;
         }
     }
-    for (name, failure) in analysis.failures() {
+    for (name, failure) in workspace.analysis.failures() {
         println!("{name}: askama-analyzer could not generate this item: {failure}");
         count += 1;
     }
     eprintln!(
-        "{} template items in {} packages; {count} problems",
-        analysis.item_count(),
-        analysis.packages.len()
+        "{} template items in {} packages, generated in {generated_in:.1?}; {count} problems",
+        workspace.analysis.item_count(),
+        workspace.analysis.packages.len()
     );
     Ok(if count == 0 {
         ExitCode::SUCCESS
