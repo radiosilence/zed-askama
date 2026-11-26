@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "grammar"]
 # Upstream code with our tooling patch, built as a dependency but not held to
 # this workspace's lints; scripts/vendor-askama.py owns its contents.
 exclude = ["vendor"]

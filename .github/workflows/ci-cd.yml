@@ -41,6 +41,7 @@ jobs:
       actions: read
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
+      grammar: ${{ steps.filter.outputs.grammar }}
       vendor: ${{ steps.filter.outputs.vendor }}
       changelog: ${{ steps.filter.outputs.changelog }}
       workflows: ${{ steps.filter.outputs.workflows }}
@@ -69,7 +70,7 @@ jobs:
         # command rather than an answer, so every question is asked in a
         # condition.
         run: |
-          rust=true vendor=true changelog=true workflows=true deps=true
+          rust=true grammar=true vendor=true changelog=true workflows=true deps=true
           base=HEAD^1
           if [ "$EVENT" = "push" ]; then
             base=
@@ -88,8 +89,12 @@ jobs:
             echo "changes since $(git rev-parse --short "$base"):"
             printf '%s\n' "$files" | sed 's/^/  /'
             # Anything cargo compiles or that decides how, including the
-            # vendored generator.
-            touches '^crates/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
+            # vendored generator and the grammar's crate, whose tests read
+            # askama's vendored test suite.
+            touches '^crates/|^grammar/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
+            # The grammar, the Zed extension's queries over it, and the
+            # askama test suite the grammar is held to.
+            touches '^grammar/|^editors/zed/|^vendor/askama-testing/|^scripts/vendor-askama-testing\.py$|^mise\.toml$|^\.github/' || grammar=false
             # The vendored generator must stay upstream's release plus our
             # patch, and its version follows the parser pin in Cargo.toml.
             touches '^vendor/|^scripts/vendor-askama\.py$|^Cargo\.toml$|^\.github/' || vendor=false
@@ -104,6 +109,7 @@ jobs:
           fi
           {
             echo "rust=$rust"
+            echo "grammar=$grammar"
             echo "vendor=$vendor"
             echo "changelog=$changelog"
             echo "workflows=$workflows"
@@ -140,6 +146,55 @@ jobs:
       - name: Run tests
         if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
         run: cargo test --workspace --locked
+
+  # The grammar as Zed builds it. Zed compiles grammar/src from the repository
+  # at the `rev` the extension pins, never generating it, so the generated
+  # parser must be what grammar.js makes and the pinned commit must hold the
+  # same grammar/src as this one. The corpus tests and every query the
+  # extension ships are checked against the grammar, and the vendored askama
+  # test suite (which the grammar crate's differential test reads in Check)
+  # must be askama's own.
+  grammar:
+    name: Grammar
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.grammar == 'true'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The extension's pinned grammar commit is compared with this one.
+          fetch-depth: 0
+      # tree-sitter at the version mise.toml pins, which decides the generated parser.
+      - uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        with:
+          install_args: tree-sitter
+      - name: Generated parser is fresh
+        working-directory: grammar
+        run: |
+          tree-sitter generate
+          if ! git diff --exit-code -- src; then
+            echo "::error::grammar/src is stale; run \`tree-sitter generate\` in grammar/ and commit it"
+            exit 1
+          fi
+      - name: Corpus
+        working-directory: grammar
+        run: tree-sitter test
+      - name: Queries compile against the grammar
+        working-directory: grammar
+        run: |
+          for query in ../editors/zed/languages/*/*.scm; do
+            tree-sitter query "$query" ../vendor/askama-testing/templates/attr.html > /dev/null
+          done
+      - name: Pinned grammar matches
+        run: |
+          rev=$(sed -n 's/^rev = "\(.*\)"/\1/p' editors/zed/extension.toml)
+          if ! git diff --quiet "$rev" HEAD -- grammar/src; then
+            echo "::error::editors/zed/extension.toml pins grammar rev $rev, whose grammar/src differs from this commit's; pin a pushed commit that holds this grammar"
+            exit 1
+          fi
+      - name: Vendored askama test suite is askama's
+        run: python3 scripts/vendor-askama-testing.py --check
 
   # vendor/askama_derive must be askama_derive at the version Cargo.toml pins
   # askama_parser to, with vendor/askama_derive-tooling.patch applied and
@@ -211,7 +266,7 @@ jobs:
     name: Checks
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    needs: [changes, check, vendor, changelog, actionlint, audit]
+    needs: [changes, check, grammar, vendor, changelog, actionlint, audit]
     if: always()
     steps:
       - env:
