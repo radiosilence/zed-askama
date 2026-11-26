@@ -1,5 +1,5 @@
-//! `askama-analyzer`: a language server for askama templates, and a `check` command that runs
-//! the same analysis from a terminal.
+//! `askama-analyzer`: a language server for askama templates, a `check` command that runs
+//! the same analysis from a terminal, and `fmt`, the template formatter.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -25,6 +25,16 @@ enum Command {
         /// Also have this rust-analyzer check the generated code, as the editor does.
         #[arg(long, value_name = "PATH")]
         rust_analyzer: Option<PathBuf>,
+    },
+    /// Format templates in place: the files given, or every file under a `templates`
+    /// directory in the directories given. Only the inside of tags changes.
+    Fmt {
+        /// List the templates that are not formatted, and exit 1 if there are any, instead of
+        /// writing them.
+        #[arg(long)]
+        check: bool,
+        #[arg(default_value = ".")]
+        paths: Vec<PathBuf>,
     },
 }
 
@@ -56,6 +66,7 @@ fn main() -> ExitCode {
             path,
             rust_analyzer,
         } => runtime.block_on(askama_analyzer::check::run(&path, rust_analyzer)),
+        Command::Fmt { check, paths } => askama_analyzer::format::run(check, &paths),
     };
     match result {
         Ok(code) => code,

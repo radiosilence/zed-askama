@@ -24,6 +24,8 @@ Files ending `.askama` or `.rinja` open as Askama HTML, `.md.askama` as Askama M
 }
 ```
 
+`askama-analyzer fmt [--check] [PATH...]` formats templates, the files given or every file under a `templates` directory, changing only the spacing inside tags: text outside them is what askama renders, so it is never touched.
+
 ## How it is put together
 
 | Path | What |

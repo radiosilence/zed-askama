@@ -7,6 +7,7 @@
 pub mod analysis;
 pub mod check;
 pub mod features;
+pub mod format;
 pub mod generator;
 pub mod index;
 pub mod overlay;

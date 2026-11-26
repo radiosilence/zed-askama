@@ -1,0 +1,3 @@
+# Items in askama's passing tests that this crate reports askama errors for, one per line:
+# `tests/<file>:<line>:<item>`, then why. Askama's own passing tests should have none.
+tests/paths.rs:23:SymlinkEscapeTemplate askama ships symlink-escape.html as a symlink, which scripts/vendor-askama-testing.py does not copy (it extracts regular files only)
