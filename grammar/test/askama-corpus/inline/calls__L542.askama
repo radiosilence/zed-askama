@@ -1,0 +1,21 @@
+
+{%- macro outer() -%}
+    {%- set content = caller() -%}
+    <outer>
+        {%- call inner() -%}
+            {{- content -}}
+        {%- endcall -%}
+    </outer>
+{%- endmacro -%}
+
+{%- macro inner() -%}
+    <inner>
+        {{- caller() -}}
+    </inner>
+{%- endmacro -%}
+
+
+{%- call outer() -%}
+    my content
+{%- endcall -%}
+        

@@ -1,0 +1,16 @@
+
+{{- test() | noargs | safe }}
+
+{{ test() | req1("lol") | safe }}
+
+{{ test() | opt1 | safe }}
+{{ test() | opt1("nodefault") | safe }}
+{{ test() | opt1(opt0 = "nodefault") | safe }}
+
+{{ test() | req1_opt1("req") | safe }}
+{{ test() | req1_opt1("req", "supplied") | safe }}
+{{ test() | req1_opt1("req", opt0 = "supplied") | safe }}
+
+{{ test() | shared_generic("blub") | safe }}
+{{ test() | impl_trait_input | safe -}}
+        

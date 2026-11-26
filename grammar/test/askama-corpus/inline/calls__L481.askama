@@ -1,0 +1,12 @@
+
+{%- macro dump_users(users) -%}
+    {%- for (pos, user) in users.iter().enumerate() -%}
+        {%- let user_display = caller(user, pos) -%}
+        user: {{ user_display }}
+    {%~ endfor %}
+{%- endmacro %}
+
+{%- call(user, pos) dump_users(users) -%}
+    {{user}} (position: {{pos}})
+{%- endcall -%}
+        

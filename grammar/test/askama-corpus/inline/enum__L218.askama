@@ -1,0 +1,4 @@
+{% block a -%} {{ Self::CONST_A }} {{ self.0 }} {%- endblock %}
+            {% block b -%} {{ Self::CONST_B }} {{ self.0 }} {%- endblock %}
+            {% block c -%} {{ Self::func_c(self.0) }} {{ self.0 }} {%- endblock %}
+        

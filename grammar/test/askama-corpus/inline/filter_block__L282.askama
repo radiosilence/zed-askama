@@ -1,0 +1,13 @@
+
+    {%- let count = 1 -%}
+    {%- let canary = 2 -%}
+    {%- filter upper -%}
+        {%- let canary = 3 -%}
+        [
+            {%- for _ in 0..=count %}
+                {%~ filter paragraphbreaks -%}
+                    {{v}}
+                {%~ endfilter -%}
+            {%- endfor -%}
+        ]
+    {%~ endfilter %}{{ canary }}

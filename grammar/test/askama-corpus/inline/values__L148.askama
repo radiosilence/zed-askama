@@ -1,0 +1,1 @@
+{{ askama::get_value::<&str>("sentence")? }}

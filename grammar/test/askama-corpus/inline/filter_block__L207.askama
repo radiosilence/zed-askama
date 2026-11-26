@@ -1,0 +1,11 @@
+{% extends "html-base.html" %}
+
+{%- block body -%}
+    <h1>Metadata</h1>
+        {% set y = 12 %}
+
+    {% filter wordcount %}
+        {%- include "../test_trim.toml" +%}
+        y is {{ y }}
+    {% endfilter %}
+{%- endblock body %}

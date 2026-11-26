@@ -1,0 +1,3 @@
+
+{%- set navigation %}{{b}}: c{% endset -%}
+{{ navigation -}}

@@ -1,0 +1,1 @@
+{{ InnerCell { number: 42 } }}

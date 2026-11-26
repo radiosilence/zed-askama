@@ -1,0 +1,8 @@
+
+{%- match good -%}
+    // Help, I forgot how to write comments!
+    {%- when true %}
+        good
+    {%- when _ -%}
+        bad
+{%- endmatch -%}

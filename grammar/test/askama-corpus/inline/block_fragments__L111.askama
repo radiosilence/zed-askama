@@ -1,0 +1,6 @@
+{% block empty %}
+{% endblock %}
+
+{% if let Some(var) = var %}
+{{ var }}
+{% endif %}

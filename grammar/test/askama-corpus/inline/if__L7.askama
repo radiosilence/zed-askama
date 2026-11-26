@@ -1,0 +1,9 @@
+{%- if s == "" -%}
+empty
+{%- else if s == "b" -%}
+b
+{%- elif s == "c" -%}
+c
+{%- else -%}
+else
+{%- endif -%}

@@ -1,0 +1,2 @@
+{% if x == b"hi".as_slice() %}bc{% endif %}
+{%- if c"a".to_bytes_with_nul() == b"a\0" %} hoy{% endif %}

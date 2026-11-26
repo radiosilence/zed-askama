@@ -1,0 +1,2 @@
+bla
+{% extends "base.html" %}

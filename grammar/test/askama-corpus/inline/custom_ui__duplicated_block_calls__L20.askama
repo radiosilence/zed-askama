@@ -1,0 +1,3 @@
+{% extends "child.html" %}
+
+{% block content %}another{% endblock %}

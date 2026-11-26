@@ -1,0 +1,1 @@
+{% decl x %}{% let x = 1 %}{% for x in x..=x %}{{ x }}{% endfor %}

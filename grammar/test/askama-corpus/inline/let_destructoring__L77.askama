@@ -1,0 +1,1 @@
+{% let NamedStruct { a, b: d, c } = v %}{{a}}{{d}}{{c}}

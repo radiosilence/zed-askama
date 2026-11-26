@@ -1,0 +1,5 @@
+
+        {% macro example(name, value, current, label="", id="") %}
+        {% endmacro %}
+        {% call example(name="name", value="") %}{% endcall %}
+    

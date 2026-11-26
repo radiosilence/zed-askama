@@ -1,0 +1,3 @@
+
+{%- import "macro.html" as otherscope -%}
+{{- otherscope::twice("xxx") -}}

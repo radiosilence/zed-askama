@@ -1,0 +1,8 @@
+{%- macro thrice(a=1, b=a + 1, c=a + b + 2) -%}
+{{ a }} {{ b }} {{ c }}
+{% endmacro -%}
+
+{%- call thrice() -%}{%- endcall -%}
+{%- call thrice(b=6) -%}{%- endcall -%}
+{%- call thrice(c=3) -%}{%- endcall -%}
+{%- call thrice(a=3) -%}{%- endcall -%}

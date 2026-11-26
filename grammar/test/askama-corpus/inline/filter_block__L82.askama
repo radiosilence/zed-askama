@@ -1,0 +1,9 @@
+{% filter lower -%}
+    {{ t }} / HELLO / {{ u }}
+{% endfilter %}
+
+{%- filter upper -%}
+{{ u }} + TaDaM + {{ t }}
+{%- endfilter -%}
+
+++b

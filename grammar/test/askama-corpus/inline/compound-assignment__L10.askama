@@ -1,0 +1,7 @@
+
+        {%- let mut prefixsum = 0 -%}
+        {%- for i in 0..limit -%}
+            {%- mut prefixsum += i -%}
+            {{ prefixsum }}.
+        {%- endfor -%}
+    

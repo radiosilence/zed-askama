@@ -1,0 +1,10 @@
+
+{%- macro testmacro() -%}
+    {%- if caller is defined -%}
+        {{- caller() -}}
+    {%- else -%}
+        no caller defined
+    {%- endif -%}
+{%- endmacro -%}
+{{- testmacro() -}}
+{%- call testmacro() -%}|this time with caller{%- endcall -%}

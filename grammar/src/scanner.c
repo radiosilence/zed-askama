@@ -9,11 +9,17 @@
 //   control;
 // - `{%`, split into a branch start (before `else`, `elif`, `when` and any
 //   `end…` keyword) and a block start (before everything else), so a block's
-//   body ends on one token of lookahead;
+//   body ends on one token of lookahead. `{% endwhen` has a start of its own,
+//   because it is optional: after a `when` arm's body, a branch start could
+//   either close the arm or begin the next one;
+// - `let` and `set` at the start of a condition, which are keywords only when a
+//   pattern and `=` follow (`{% if let Some(x) = y %}`) and variables
+//   otherwise (`{% if set.is_empty() %}`), as askama decides by backtracking;
 // - Rust raw strings (`r#"…"#`, `br"…"`, `cr"…"`) inside macro token trees.
 //
-// The scanner keeps no state between tokens, never allocates, and reads at most
-// one keyword's worth of lookahead past a `{%`.
+// The scanner keeps no state between tokens and never allocates. Its lookahead
+// is bounded: one keyword past a `{%`, and at most LET_LOOKAHEAD characters
+// past a `let` or `set`.
 
 #include "tree_sitter/parser.h"
 
@@ -27,6 +33,9 @@ enum TokenType {
   COMMENT_BODY,
   BLOCK_START,
   BRANCH_START,
+  ENDWHEN_START,
+  LET_KEYWORD,
+  SET_KEYWORD,
   RAW_STRING_LITERAL,
   ERROR_SENTINEL,
 };
@@ -34,6 +43,10 @@ enum TokenType {
 // The longest keyword the scanner needs to tell apart is `endfilter`; anything
 // longer is read only far enough to know whether it starts with `end`.
 #define KEYWORD_CAPACITY 16
+
+// A `let` pattern longer than this is read as an expression. The longest in
+// askama's tests and in koan's templates is under 100 characters.
+#define LET_LOOKAHEAD 4096
 
 void *tree_sitter_askama_external_scanner_create(void) { return NULL; }
 
@@ -105,6 +118,10 @@ static bool scan_tag_start(TSLexer *lexer, const bool *valid_symbols) {
                    equals(keyword, length, "else") || equals(keyword, length, "elif") ||
                    equals(keyword, length, "when");
 
+  if (equals(keyword, length, "endwhen") && valid_symbols[ENDWHEN_START]) {
+    lexer->result_symbol = ENDWHEN_START;
+    return true;
+  }
   if (is_branch && valid_symbols[BRANCH_START]) {
     lexer->result_symbol = BRANCH_START;
     return true;
@@ -254,6 +271,78 @@ static bool scan_raw_content(TSLexer *lexer) {
   }
 }
 
+// Skips a string or character literal starting at the quote under the lexer.
+static void skip_quoted(TSLexer *lexer, unsigned *budget) {
+  int32_t quote = lexer->lookahead;
+  advance(lexer);
+  while (!lexer->eof(lexer) && lexer->lookahead != quote && *budget > 0) {
+    if (lexer->lookahead == '\\') advance(lexer);
+    advance(lexer);
+    (*budget)--;
+  }
+  advance(lexer);
+}
+
+// Called on the `l` or `s` of a possible `let` or `set` where a condition may
+// start. Emits the keyword when a pattern follows and then a single `=`, the
+// test askama applies by trying `let <pattern> =` and backtracking on failure.
+static bool scan_let_keyword(TSLexer *lexer, const bool *valid_symbols) {
+  enum TokenType symbol = lexer->lookahead == 'l' ? LET_KEYWORD : SET_KEYWORD;
+  if (!valid_symbols[symbol]) return false;
+  if (!match_word(lexer, symbol == LET_KEYWORD ? "let" : "set")) return false;
+  if (is_keyword_char(lexer->lookahead)) return false;
+  lexer->mark_end(lexer);
+
+  unsigned depth = 0;
+  unsigned budget = LET_LOOKAHEAD;
+  while (!lexer->eof(lexer) && budget > 0) {
+    int32_t c = lexer->lookahead;
+    budget--;
+    switch (c) {
+      case '(':
+      case '[':
+      case '{':
+        depth++;
+        break;
+      case ')':
+      case ']':
+      case '}':
+        if (depth == 0) return false;
+        depth--;
+        break;
+      case '"':
+      case '\'':
+        skip_quoted(lexer, &budget);
+        continue;
+      case '=':
+        advance(lexer);
+        if (depth != 0 || lexer->lookahead == '=') return false;
+        lexer->result_symbol = symbol;
+        return true;
+      case '.':
+        advance(lexer);
+        if (lexer->lookahead != '.') return false;
+        break;
+      case '!':
+      case '?':
+      case '*':
+      case '+':
+      case '&':
+      case '|':
+      case '~':
+      case '^':
+      case '%':
+      case ';':
+      case '/':
+        return false;
+      default:
+        break;
+    }
+    advance(lexer);
+  }
+  return false;
+}
+
 // Scans a Rust raw string: `r`, `br` or `cr`, up to 255 `#`, a quoted body
 // and the same number of `#`.
 static bool scan_raw_string(TSLexer *lexer) {
@@ -305,12 +394,17 @@ bool tree_sitter_askama_external_scanner_scan(void *payload, TSLexer *lexer,
 
   while (is_space(lexer->lookahead)) lexer->advance(lexer, true);
 
-  if (lexer->lookahead == '{' &&
-      (valid_symbols[BLOCK_START] || valid_symbols[BRANCH_START] || valid_symbols[COMMENT_START])) {
+  if (lexer->lookahead == '{' && (valid_symbols[BLOCK_START] || valid_symbols[BRANCH_START] ||
+                                  valid_symbols[ENDWHEN_START] || valid_symbols[COMMENT_START])) {
     advance(lexer);
     if (lexer->lookahead == '%') return scan_tag_start(lexer, valid_symbols);
     if (lexer->lookahead == '#' && valid_symbols[COMMENT_START]) return scan_comment_start(lexer);
     return false;
+  }
+
+  if ((valid_symbols[LET_KEYWORD] || valid_symbols[SET_KEYWORD]) && !recovering &&
+      (lexer->lookahead == 'l' || lexer->lookahead == 's')) {
+    return scan_let_keyword(lexer, valid_symbols);
   }
 
   if (valid_symbols[RAW_STRING_LITERAL] && !recovering &&

@@ -1,0 +1,5 @@
+{% macro button(label) %}
+{{- label -}}
+{% endmacro %}
+
+{%- call button(label="hi") -%}{%- endcall -%}

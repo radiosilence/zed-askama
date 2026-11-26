@@ -1,0 +1,1 @@
+{{ self::static_fn2("test").unwrap(arg = "test") }}

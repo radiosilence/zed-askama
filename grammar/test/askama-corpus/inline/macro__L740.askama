@@ -1,0 +1,8 @@
+
+{%- macro test(entries: &[u32]) -%}
+{%- for entry in entries -%}
+-> {{entry}}
+{% endfor -%}
+{% endmacro -%}
+{{- test(x.as_slice()) -}}
+        

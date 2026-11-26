@@ -1,0 +1,19 @@
+{% filter lower|indent("> ") -%}
+HELLO
+{{v}}
+{%- endfilter %}
+
+{% filter lower|indent(2)   -%}
+HELLO
+{{v}}
+{%- endfilter %}
+
+{% filter lower|indent(2) %}
+HELLO
+{{v}}
+{%- endfilter %}
+
+{% filter lower|indent(2)   %}
+HELLO
+{{v}}
+{%- endfilter %}

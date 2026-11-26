@@ -1,0 +1,4 @@
+
+    {{- self::single() -}}
+    {{- sub_mod::sub_fn(3) -}}
+    

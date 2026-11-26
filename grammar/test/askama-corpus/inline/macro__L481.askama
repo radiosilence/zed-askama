@@ -1,0 +1,9 @@
+
+{%- macro test(title = Option::<String>::None, b = Option::<u32>::Some(0)) -%}
+    {%- if let Some(title) = title -%}
+        Title: {{title}}
+    {%- endif -%}
+    {%- if let Some(b) = b -%}---> {{b}}{% endif -%}
+{%- endmacro -%}
+
+{% call test(b = Option::<u32>::Some(3)) %}{% endcall -%}

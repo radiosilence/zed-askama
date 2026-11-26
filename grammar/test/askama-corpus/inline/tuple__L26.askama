@@ -1,0 +1,10 @@
+
+{%- match (client.can_post(post), client.can_update(post)) -%}
+    {%- when (false, false) -%}
+        No!
+    {%- when (can_post, can_update) -%}
+        <ul>
+        {%- if can_post -%}<li>post</li>{%- endif -%}
+        {%- if can_update -%}<li>update</li>{%- endif -%}
+        </ul>
+{%- endmatch -%}

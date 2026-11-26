@@ -1,0 +1,1 @@
+{% if let Ok(x) = "a"|value::<u8, u8> %}{% endif %}

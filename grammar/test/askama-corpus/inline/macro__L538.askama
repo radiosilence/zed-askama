@@ -1,0 +1,3 @@
+
+{%- import "nested-macro.html" as otherscope -%}
+{{- otherscope::parent() -}}

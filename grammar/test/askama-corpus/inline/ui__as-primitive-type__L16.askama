@@ -1,0 +1,1 @@
+{{ 1234 as core::primitive::u32 }}

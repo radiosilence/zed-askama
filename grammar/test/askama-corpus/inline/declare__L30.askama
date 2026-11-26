@@ -1,0 +1,7 @@
+{%- declare x -%}
+{%- if y -%}
+    {%- let x = String::new() %}
+{%- else -%}
+    {%- let x = format!("blob") %}
+{%- endif -%}
+{{ x }}

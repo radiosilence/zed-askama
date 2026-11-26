@@ -1,0 +1,4 @@
+
+{%- if let RestPattern2 { a, b } = x -%}hello {{ a }}{%- endif -%}
+{%- if let RestPattern2 { a, b, } = x -%}hello {{ b }}{%- endif -%}
+{%- if let RestPattern2 { a, .. } = x -%}hello {{ a }}{%- endif -%}

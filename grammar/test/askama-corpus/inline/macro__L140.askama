@@ -1,0 +1,7 @@
+{%- macro thrice(param1, param2) -%}
+{{ param1 }} {{ param2 }}
+{% endmacro -%}
+
+{%- call thrice(param1=2, param2=3) -%}{%- endcall -%}
+{%- call thrice(param2=3, param1=2) -%}{%- endcall -%}
+{%- call thrice(3, param2=2) -%}{%- endcall -%}

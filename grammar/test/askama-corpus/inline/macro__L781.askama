@@ -1,0 +1,12 @@
+
+{%- macro test(entries: &[Vec<u32>]) -%}
+{%- for entry in entries -%}
++>
+{%- for sub_entry in entry -%}
+-> {{sub_entry}}
+{% endfor -%}
+{% endfor -%}
+{% endmacro -%}
+
+{{- test(x.as_slice()) -}}
+        

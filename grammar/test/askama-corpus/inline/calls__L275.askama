@@ -1,0 +1,8 @@
+
+{%- macro test() -%}
+{{~ caller("test") ~}}
+{{~ caller(1) ~}}
+{%- endmacro -%}
+{%- call(value) test() -%}
+nested {{value}}  
+{%- endcall -%}

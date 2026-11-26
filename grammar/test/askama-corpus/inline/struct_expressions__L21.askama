@@ -1,0 +1,1 @@
+{{ InnerCell { number: *my_number } }}

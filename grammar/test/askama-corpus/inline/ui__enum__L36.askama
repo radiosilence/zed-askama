@@ -1,0 +1,6 @@
+
+        {%- block a -%} a {%- endblock -%}
+        {%- block b -%} b {%- endblock -%}
+        {#- no block c -#}
+        {%- block d -%} d {%- endblock -%}
+    

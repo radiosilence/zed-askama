@@ -1,0 +1,6 @@
+
+{%- match greeting -%}
+    {%- when Hello -%} Hello!
+    {%- when Hey -%} Hey!
+    {%- when Hi -%} Hi!
+{%- endmatch -%}

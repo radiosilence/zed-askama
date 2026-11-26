@@ -1,0 +1,1 @@
+some{{ InnerCell { ..Default::default(), a: 12 } }}

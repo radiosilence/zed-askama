@@ -1,0 +1,1 @@
+{{ func::<xyz<some::path::self>>() }}

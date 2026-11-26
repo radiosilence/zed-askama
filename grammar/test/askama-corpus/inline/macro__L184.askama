@@ -1,0 +1,17 @@
+{% macro button(label , ) %}
+{{- label -}}
+{% endmacro %}
+{%- macro button2(label ,) %}
+{% endmacro %}
+{%- macro button3(label,) %}
+{% endmacro %}
+{%- macro button4(label, ) %}
+{% endmacro %}
+{%- macro button5(label ) %}
+{% endmacro %}
+
+{%- call button(label="hi" , ) -%}{%- endcall -%}
+{%- call button(label="hi" ,) -%}{%- endcall -%}
+{%- call button(label="hi",) -%}{%- endcall -%}
+{%- call button(label="hi", ) -%}{%- endcall -%}
+{%- call button(label="hi" ) -%}{%- endcall -%}

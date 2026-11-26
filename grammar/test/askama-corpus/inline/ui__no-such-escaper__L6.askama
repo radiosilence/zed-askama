@@ -1,0 +1,1 @@
+In LaTeX you write `{{text}}` like `{{text|escape("latex")}}`.

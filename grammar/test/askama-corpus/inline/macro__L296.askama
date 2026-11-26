@@ -1,0 +1,11 @@
+
+            {%- macro test2() -%}
+                a
+                {{- caller() -}}
+            {%- endmacro -%}
+            {%- macro test() -%}
+               {%- call test2() -%}b{%- endcall -%}
+               {{- caller() -}}
+            {%- endmacro -%}
+            {%- call test() -%}{%- call test2() -%}b{%- endcall -%}{%- endcall -%}
+        

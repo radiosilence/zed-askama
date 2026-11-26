@@ -1,0 +1,4 @@
+{%- macro thrice() -%}
+{%- endmacro -%}
+
+{%- call thrice(1, 2) -%}{%- endcall -%}

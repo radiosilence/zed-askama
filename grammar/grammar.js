@@ -68,6 +68,9 @@ module.exports = grammar({
     $._comment_body,
     $._block_start,
     $._branch_start,
+    $._endwhen_start,
+    $._let_keyword,
+    $._set_keyword,
     $.raw_string_literal,
     $._error_sentinel,
   ],
@@ -213,8 +216,10 @@ module.exports = grammar({
 
     _condition: ($) => choice($._expression, $.let_condition, $.let_chain),
 
+    // `let` and `set` here come from the scanner, which reads them as keywords
+    // only when a pattern and `=` follow; otherwise they are variables.
     let_condition: ($) => prec.right(PREC.let_chain, seq(
-      choice('let', 'set'),
+      choice(alias($._let_keyword, 'let'), alias($._set_keyword, 'set')),
       field('pattern', $._pattern),
       '=',
       field('value', $._condition),
@@ -259,11 +264,11 @@ module.exports = grammar({
 
     match_tag: ($) => seq($._open, 'match', field('value', $._expression), $._block_end),
 
-    when_clause: ($) => prec.right(seq(
+    when_clause: ($) => seq(
       field('open', $.when_tag),
       repeat(field('body', $._node)),
       optional(seq(field('close', $.endwhen_tag), repeat($.comment))),
-    )),
+    ),
 
     when_tag: ($) => seq(
       $._branch,
@@ -273,7 +278,7 @@ module.exports = grammar({
       $._block_end,
     ),
 
-    endwhen_tag: ($) => seq($._branch, 'endwhen', $._block_end),
+    endwhen_tag: ($) => seq(alias($._endwhen_start, '{%'), 'endwhen', $._block_end),
 
     endmatch_tag: ($) => seq($._branch, 'endmatch', $._block_end),
 

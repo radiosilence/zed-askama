@@ -1,0 +1,8 @@
+
+{%- macro mac(bla) -%}
+{% for x in &[1] -%}
+{% endfor -%}
+{% endmacro -%}
+
+{% call mac(bla=bla) %}{% endcall %}
+{{- bla }}

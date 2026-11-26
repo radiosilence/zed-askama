@@ -1,0 +1,4 @@
+{% filter lower|indent(2)|capitalize -%}
+HELLO
+{{v}}
+{%- endfilter %}

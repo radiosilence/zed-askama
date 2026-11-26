@@ -1,0 +1,2 @@
+{% if let Some(b'a') = Some(b'a') %}bc{% endif %}
+{%- if data == [b'h', b'i'] %} hoy{% endif %}

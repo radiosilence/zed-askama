@@ -1,0 +1,5 @@
+
+{% block bla %}
+{% macro bla() %}
+{% endmacro %}
+{% endblock %}

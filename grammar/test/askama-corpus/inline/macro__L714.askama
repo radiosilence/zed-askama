@@ -1,0 +1,10 @@
+
+{%- macro test(title: Option<u32> = None) -%}
+-> {{title|fmt("{:?}")}}
+{% endmacro -%}
+
+{% let y = Some(12) -%}
+{% call test(y) %}{% endcall -%}
+{% call test(x) %}{% endcall -%}
+{% call test() %}{% endcall -%}
+        

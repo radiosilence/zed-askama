@@ -1,0 +1,11 @@
+
+{%- macro macro1() -%}
+    {{caller()}}
+{%- endmacro -%}
+{%- macro macro2() -%}
+    {%- call macro1() -%}
+        {%- include "foo.html" -%}
+    {%- endcall -%}
+{%- endmacro -%}
+{%- call macro2() %}{%- endcall -%}
+        

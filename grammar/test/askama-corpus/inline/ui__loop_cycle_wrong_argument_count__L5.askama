@@ -1,0 +1,1 @@
+{% for v in values %}{{ loop.cycle("r", "g", "b") }}{{ v }},{% endfor %}

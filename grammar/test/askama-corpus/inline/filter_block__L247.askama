@@ -1,0 +1,13 @@
+
+{%- filter title %}
+    {{- x -}}
+    {%- if x == 21 -%}
+        X is big
+    {%- else -%}
+        No clue what X is
+    {%- endif %}
+
+    {% if let Some(v) = v -%}
+        v is {{ v -}}
+    {% endif -%}
+{% endfilter -%}

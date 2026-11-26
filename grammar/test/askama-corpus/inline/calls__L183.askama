@@ -1,0 +1,12 @@
+
+{%- macro layer0() -%}A{{ caller() }}a{%- endmacro -%}
+{%- macro layer1() -%}B
+    {%- set caller_layer1 = caller -%}
+    {%- call layer0() -%}{{ caller_layer1() }}{%- endcall -%}
+b{%- endmacro -%}
+{%- macro layer2() -%}C
+    {%- set caller_layer2 = caller -%}
+    {%- call layer1() -%}{{ caller_layer2() }}{%- endcall -%}
+c{%- endmacro -%}
+
+{%- call layer2() -%}_CONTENT_{%- endcall -%}

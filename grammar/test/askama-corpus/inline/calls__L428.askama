@@ -1,0 +1,2 @@
+
+{{- crate::sub_test::bar(b.to_string().borrow()) -}}

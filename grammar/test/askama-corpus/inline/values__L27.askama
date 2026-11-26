@@ -1,0 +1,4 @@
+
+            {%- if let Ok(bla) = "a" | value::<&str> %}{{bla}}{% endif -%}
+            {%- if let Ok(bla) = "b" | value::<bool> %} {{bla}}{% endif -%}
+        

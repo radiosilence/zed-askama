@@ -1,0 +1,1 @@
+{% macro foo(arg) %} {{arg}} {% endmacro not_foo %}

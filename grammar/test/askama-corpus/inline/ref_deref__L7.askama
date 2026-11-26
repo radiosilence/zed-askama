@@ -1,0 +1,10 @@
+
+{%- if *title == "something" -%}
+something1
+{%- elif title == &"another" -%}
+another2
+{%- elif &*title == &&*"yep" -%}
+yep3
+{%- else -%}
+{{title}}
+{%- endif -%}

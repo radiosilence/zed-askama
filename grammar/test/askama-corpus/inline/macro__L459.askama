@@ -1,0 +1,8 @@
+
+{%- macro input(type=1+2) -%}
+{{ type }}
+{% endmacro -%}
+
+{%- call input() -%}{%- endcall -%}
+{%- call input(1) -%}{%- endcall -%}
+{%- call input(type=1) -%}{%- endcall -%}

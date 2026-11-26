@@ -1,0 +1,6 @@
+
+        {%- macro test(title: Option<u32> = None) -%}{% endmacro -%}
+        {%- let y = 12 -%}
+        {{ test(y) }}
+        {{ test(x) }}
+    

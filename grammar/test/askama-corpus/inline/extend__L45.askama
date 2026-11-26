@@ -1,0 +1,11 @@
+
+{% extends "extend_and_import.html" %}
+
+{{ 45 }}
+yup
+
+{% let x = 12 %}
+{%- block header -%}
+    {{ x }} + {{ y }}
+{%- endblock -%}
+{% let y = "hello" %}

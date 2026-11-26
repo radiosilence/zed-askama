@@ -1,0 +1,16 @@
+
+{%- macro inner() -%}
+    inner before|{{- caller(1) -}}|inner after
+{%- endmacro -%}
+{%- macro outer() -%}
+    outer before|
+    {%- set caller_ = caller -%}
+    {%- call(c) inner() -%}
+        {{c}}
+        {{- caller_(3, 4) -}}
+    {%- endcall -%}
+    |outer after
+{%- endmacro -%}
+{%- call(a, b) outer() -%}
+    content{{a}}-{{b}}
+{%- endcall -%}

@@ -1,0 +1,8 @@
+
+{%- macro test(entries: std::vec::Vec<u32>) -%}
+{%- for entry in entries -%}
+-> {{entry}}
+{% endfor -%}
+{% endmacro -%}
+{{- test(x) -}}
+        

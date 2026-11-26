@@ -1,0 +1,10 @@
+
+{%- macro package_navigation(title, show) -%}
+{%- if show -%}
+{{title}}
+{%- else -%}
+no show
+{%- endif -%}
+{%- endmacro -%}
+
+{%- call package_navigation(title=title, show=true) -%}{%- endcall -%}

@@ -1,0 +1,11 @@
+
+            {%- block square -%}
+                {{self.0}}^2
+            {%- endblock -%}
+            {%- block rectangle -%}
+                {{a}} * {{b}}
+            {%- endblock -%}
+            {%- block circle -%}
+                pi * {{radius}}^2
+            {%- endblock -%}
+        

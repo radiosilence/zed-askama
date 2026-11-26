@@ -1,0 +1,14 @@
+{% extends "extend_and_import.html" %}
+{%- import "macro.html" as m2 -%}
+
+{%- macro another(param) -%}
+
+--> {{ param }}
+
+{%- endmacro -%}
+
+{% block header -%}
+{% call m1::twice(1) %}{% endcall %}
+{% call m2::twice(2) %}{% endcall %}
+{% call another(3) %}{% endcall %}
+{%- endblock -%}
