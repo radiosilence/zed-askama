@@ -1,0 +1,1 @@
+- **The grammar's crate is named `tree-sitter-askama`.** Its old name came from the workspace it shared with the language server.
