@@ -28,8 +28,8 @@ use lsp_types::notification::{
     Initialized, PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
-    Completion, GotoDefinition, HoverRequest, Initialize, PrepareRenameRequest, References, Rename,
-    Shutdown,
+    Completion, Formatting, GotoDefinition, HoverRequest, Initialize, PrepareRenameRequest,
+    References, Rename, Shutdown,
 };
 use lsp_types::{
     CompletionOptions, Diagnostic, DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions,
@@ -185,6 +185,10 @@ fn router(state: State) -> Router<State> {
             let uri = params.text_document_position.text_document.uri.clone();
             ask(state, &uri, |reply| Query::Rename(params, reply))
         })
+        .request::<Formatting, _>(|state, params| {
+            let edits = format_document(state, &params.text_document.uri);
+            async move { Ok(edits) }
+        })
         .request::<Completion, _>(|state, params| {
             let uri = params.text_document_position.text_document.uri.clone();
             ask(state, &uri, |reply| Query::Completion(params, reply))
@@ -273,6 +277,33 @@ fn ask<T: Send + 'static, Q: FnOnce(oneshot::Sender<Option<T>>) -> Query>(
     }
 }
 
+/// The whole document's formatting as one edit, or none when it is formatted already. Only
+/// Askama documents are formatted: HTML and Rust have formatters of their own. A template the
+/// formatter refuses (it does not parse, or formatting would change what it means) is left as
+/// it is.
+fn format_document(state: &State, uri: &Url) -> Option<Vec<lsp_types::TextEdit>> {
+    let path = file_path(uri)?;
+    let doc = state.shared.inner.lock().docs.get(&path).cloned()?;
+    if doc.language != ASKAMA_LANGUAGE {
+        return None;
+    }
+    let formatted = match crate::format::format(&doc.text, &askama_parser::Syntax::default()) {
+        Ok(formatted) => formatted,
+        Err(err) => {
+            tracing::debug!(path = %path.display(), %err, "not formatting");
+            return None;
+        }
+    };
+    if *formatted == *doc.text {
+        return Some(Vec::new());
+    }
+    let lines = Lines::new(&doc.text, state.encoding);
+    Some(vec![lsp_types::TextEdit {
+        range: lines.range(&(0..doc.text.len())),
+        new_text: formatted,
+    }])
+}
+
 fn initialize(state: &mut State, params: &InitializeParams) -> InitializeResult {
     state.encoding = Encoding::negotiate(
         params
@@ -306,6 +337,7 @@ fn initialize(state: &mut State, params: &InitializeParams) -> InitializeResult 
                 },
             )),
             hover_provider: Some(HoverProviderCapability::Simple(true)),
+            document_formatting_provider: Some(OneOf::Left(true)),
             definition_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
             rename_provider: Some(OneOf::Right(RenameOptions {

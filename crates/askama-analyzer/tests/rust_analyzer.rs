@@ -58,7 +58,7 @@ async fn a_field_the_struct_does_not_have_is_an_error_on_its_name_in_the_templat
     assert!(
         list.iter()
             .any(|problem| &text[problem.range.clone()] == "nme"),
-        "the error is not on `nme`: {list:?}"
+        "no error covers `nme`: {list:?}"
     );
     assert!(
         !problems.contains_key(&fixture().join("templates/shop.html")),
