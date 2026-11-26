@@ -1,0 +1,420 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 6ff01e9..88b247e 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -60,6 +60,10 @@ nightly-spans = []
+ proc-macro = ["proc-macro2/proc-macro"]
+ serde_json = []
+ std = ["alloc"]
++tooling = [
++    "external-sources",
++    "proc-macro2/span-locations",
++]
+ urlencode = []
+ 
+ [lib]
+diff --git a/src/config.rs b/src/config.rs
+index 2beb90d..e4b5b95 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -317,6 +317,10 @@ impl SyntaxAndCache {
+         source: Arc<str>,
+         source_path: Option<Arc<Path>>,
+     ) -> Result<Arc<Parsed>, ParseError> {
++        // Keyed by content, the cache would keep every edit a tooling host makes.
++        if crate::tooling::active() {
++            return Parsed::new(source, source_path, &self.syntax).map(Arc::new);
++        }
+         self.cache.get_or_try_insert(
+             &SyntaxAndCacheKey {
+                 source: Cow::Owned(source),
+@@ -393,6 +397,25 @@ pub(crate) fn read_config_file(
+         None => root.join(CONFIG_FILE_NAME),
+     };
+ 
++    if let Some(read) = crate::tooling::read(&filename) {
++        return match read {
++            Ok(content) => Ok((content, filename.canonicalize().ok())),
++            Err(err) if err.kind() == std::io::ErrorKind::NotFound && config_path.is_none() => {
++                Ok((String::new(), None))
++            }
++            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
++                Err(CompileError::no_file_info(
++                    format_args!("`{}` does not exist", filename.display()),
++                    span,
++                ))
++            }
++            Err(err) => Err(CompileError::no_file_info(
++                format_args!("unable to read {}: {err}", filename.display()),
++                span,
++            )),
++        };
++    }
++
+     if filename.exists() {
+         let content = fs::read_to_string(&filename).map_err(|err| {
+             CompileError::no_file_info(
+@@ -412,7 +435,9 @@ pub(crate) fn read_config_file(
+ }
+ 
+ fn manifest_root() -> PathBuf {
+-    env::var_os("CARGO_MANIFEST_DIR").map_or_else(|| PathBuf::from("."), PathBuf::from)
++    crate::tooling::manifest_dir().unwrap_or_else(|| {
++        env::var_os("CARGO_MANIFEST_DIR").map_or_else(|| PathBuf::from("."), PathBuf::from)
++    })
+ }
+ 
+ fn str_set(vals: &[&'static str]) -> Vec<Cow<'static, str>> {
+diff --git a/src/generator.rs b/src/generator.rs
+index 2d6c6b2..6394940 100644
+--- a/src/generator.rs
++++ b/src/generator.rs
+@@ -163,7 +163,10 @@ impl<'a, 'h> Generator<'a, 'h> {
+     fn rel_path<'p>(&mut self, path: &'p Path) -> Cow<'p, Path> {
+         self.caller_dir()
+             .and_then(|caller_dir| {
+-                diff_paths(path, caller_dir, std::env::var("CARGO_MANIFEST_DIR").ok())
++                let manifest_dir = crate::tooling::manifest_dir()
++                    .and_then(|dir| dir.to_str().map(str::to_owned))
++                    .or_else(|| std::env::var("CARGO_MANIFEST_DIR").ok());
++                diff_paths(path, caller_dir, manifest_dir)
+             })
+             .map_or(Cow::Borrowed(path), Cow::Owned)
+     }
+@@ -175,6 +178,14 @@ impl<'a, 'h> Generator<'a, 'h> {
+             CallerDir::Unresolved => {}
+         }
+ 
++        if let Some(caller_dir) = crate::tooling::caller_dir() {
++            self.caller_dir = CallerDir::Valid(clean_path(&caller_dir));
++            return match &self.caller_dir {
++                CallerDir::Valid(caller_dir) => Some(caller_dir.as_path()),
++                _ => None, // unreachable
++            };
++        }
++
+         if proc_macro::is_available()
+             && let Some(mut local_file) = proc_macro::Span::call_site().local_file()
+         {
+diff --git a/src/heritage.rs b/src/heritage.rs
+index e746c15..2aee386 100644
+--- a/src/heritage.rs
++++ b/src/heritage.rs
+@@ -201,7 +201,7 @@ impl<'a> Context<'a> {
+     }
+ 
+     pub(crate) fn span_for_node(&self, node: Span) -> proc_macro2::Span {
+-        if proc_macro::is_available()
++        if (proc_macro::is_available() || crate::tooling::active())
+             && let Some(range) = node.byte_range()
+             && let Some(span) = self.literal.content_subspan(range)
+         {
+diff --git a/src/input.rs b/src/input.rs
+index 02dc300..ecd30ca 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -743,6 +743,28 @@ pub(crate) fn get_template_source(
+     static CACHE: std::sync::OnceLock<crate::OnceMap<Arc<Path>, Arc<str>>> =
+         std::sync::OnceLock::new();
+ 
++    // A tooling host's files change between expansions, so they bypass the cache.
++    if let Some(read) = crate::tooling::read(tpl_path) {
++        return match read {
++            Ok(mut source) => {
++                if source.ends_with('\n') {
++                    let _ = source.pop();
++                }
++                Ok(Arc::from(source))
++            }
++            Err(err) => Err(CompileError::new(
++                format_args!(
++                    "unable to open template file '{}' (absolute path: '{}'): {err}",
++                    original_path,
++                    tpl_path.display(),
++                ),
++                import_from.map(|(node_file, file_source, node_source)| {
++                    FileInfo::new(node_file, Some(file_source), Some(node_source))
++                }),
++            )),
++        };
++    }
++
+     CACHE
+         .get_or_init(crate::OnceMap::default)
+         .get_or_try_insert(
+diff --git a/src/lib.rs b/src/lib.rs
+index 8dfe949..adf798a 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -19,6 +19,10 @@ mod integration;
+ mod spans;
+ #[cfg(test)]
+ mod tests;
++#[cfg(feature = "tooling")]
++pub mod tooling;
++#[cfg(not(feature = "tooling"))]
++mod tooling;
+ 
+ #[doc(hidden)]
+ #[cfg(feature = "proc-macro")]
+@@ -434,13 +438,23 @@ fn build_template_item(
+     let mut called_blocks = CalledBlocks::default();
+ 
+     for (path, parsed) in &templates {
++        // A compiler gives every file the derive's own literal. A tooling host gives each
++        // file read from disk a located literal of its own, so its tokens point into it.
++        let literal = if crate::tooling::active()
++            && !(path == &input.path && matches!(input.source, crate::input::Source::Source(_)))
++        {
++            crate::tooling::source_span(path, parsed.source())
++                .unwrap_or_else(crate::spans::SourceSpan::empty)
++        } else {
++            input.source_span.clone()
++        };
+         contexts.insert(
+             path,
+             Context::new(
+                 input.config,
+                 path,
+                 parsed,
+-                input.source_span.clone(),
++                literal,
+                 input.template_span,
+                 &mut called_blocks,
+             )?,
+@@ -510,7 +524,9 @@ impl CompileError {
+     ) -> Self {
+         // `Span::join` always return `None` if not on nightly. We use it to prevent not showing a
+         // nice error message when not on nightly.
+-        let span = if let Some(span) = span
++        // A tooling host's spans are located but do not join the call site; keep them.
++        let span = if !crate::tooling::active()
++            && let Some(span) = span
+             && span.join(proc_macro2::Span::call_site()).is_none()
+         {
+             None
+diff --git a/src/spans.rs b/src/spans.rs
+index cdd8c02..757f071 100644
+--- a/src/spans.rs
++++ b/src/spans.rs
+@@ -25,6 +25,15 @@ impl SourceSpan {
+         Self::Empty(Span::call_site())
+     }
+ 
++    /// A source whose text sits unescaped at `prefix..prefix + len` inside `literal`.
++    #[cfg_attr(not(feature = "tooling"), allow(dead_code))]
++    pub(crate) fn located(literal: Literal, prefix: usize, len: usize) -> Self {
++        Self::Source(SpannedSource {
++            literal,
++            positions: vec![(0, prefix), (len, prefix + len)],
++        })
++    }
++
+     pub(crate) fn from_source(source: LitStr) -> Result<(String, Self), CompileError> {
+         let (source, span) = SpannedSource::new(source)?;
+         Ok((source, Self::Source(span)))
+diff --git a/src/tooling.rs b/src/tooling.rs
+new file mode 100644
+index 0000000..773b662
+--- /dev/null
++++ b/src/tooling.rs
+@@ -0,0 +1,199 @@
++//! Running the generator outside a procedural macro, as an editor's language server does.
++//!
++//! A compiler gives the generator three things that a library caller must supply instead:
++//! the manifest directory, the file that holds the derive, and the template files as they
++//! are now, which in an editor may be unsaved. The caller supplies them through [`Host`].
++//!
++//! Inside a compiler only an inline `source` gets template locations, and templates read
++//! from files get them only on nightly. Here every template file is given a located literal
++//! in proc-macro2's fallback source map (which needs its `span-locations` feature), so each
++//! emitted token's span says where in which file it came from: [`Expansion::sources`] says
++//! which range of proc-macro2's span space each file occupies.
++//!
++//! While a host is set, the process-wide caches of template files and parsed templates are
++//! bypassed, since an editor changes files that a compiler treats as fixed, and a cache
++//! keyed by content would grow with every edit.
++
++#[cfg(feature = "tooling")]
++pub use imp::{Expansion, Host, expand};
++pub(crate) use imp::{active, caller_dir, manifest_dir, read, source_span};
++
++#[cfg(feature = "tooling")]
++mod imp {
++    use std::cell::RefCell;
++    use std::io;
++    use std::ops::Range;
++    use std::path::{Path, PathBuf};
++    use std::rc::Rc;
++    use std::sync::Arc;
++
++    use proc_macro2::{Literal, TokenStream};
++
++    use crate::spans::SourceSpan;
++
++    /// What the generator would otherwise take from the compiler and the file system.
++    pub trait Host {
++        /// The directory holding the expanding crate's `Cargo.toml`, as `CARGO_MANIFEST_DIR`
++        /// would give it.
++        fn manifest_dir(&self) -> &Path;
++
++        /// The Rust file that holds the derive, as the compiler's call-site span would give it.
++        fn caller_file(&self) -> Option<&Path>;
++
++        /// A file's current contents: a template, or the configuration file.
++        fn read(&self, path: &Path) -> io::Result<String>;
++    }
++
++    /// One expansion, and where its template files sit in proc-macro2's span space.
++    pub struct Expansion {
++        /// What the derive expands to, as [`crate::derive_template`] returns it.
++        pub tokens: TokenStream,
++        /// Each template file read for the expansion, with the range of proc-macro2's span
++        /// space its text occupies: a token whose `span().byte_range()` starts at `s` inside
++        /// `range` came from byte `s - range.start` of that file. An inline `source` is not
++        /// listed, since its literal is part of the input the caller parsed.
++        pub sources: Vec<(Arc<Path>, Range<usize>)>,
++    }
++
++    struct State {
++        host: Rc<dyn Host>,
++        sources: Vec<(Arc<Path>, Range<usize>)>,
++    }
++
++    thread_local! {
++        static STATE: RefCell<Option<State>> = const { RefCell::new(None) };
++    }
++
++    /// Clears the host when an expansion ends, also when the generator panics, so a caller
++    /// that catches the panic can go on using the thread.
++    struct Reset;
++
++    impl Drop for Reset {
++        fn drop(&mut self) {
++            STATE.with(|state| state.borrow_mut().take());
++        }
++    }
++
++    /// Expands `input`, an item deriving `Template`, as [`crate::derive_template`] does, with
++    /// everything it reads coming from `host`.
++    ///
++    /// The returned spans live in this thread's proc-macro2 source map. Read what you need
++    /// from them, then call `proc_macro2::extra::invalidate_current_thread_spans` to free it.
++    pub fn expand(
++        input: TokenStream,
++        import_askama: fn() -> TokenStream,
++        host: Rc<dyn Host>,
++    ) -> Expansion {
++        let reset = Reset;
++        STATE.with(|state| {
++            *state.borrow_mut() = Some(State {
++                host,
++                sources: Vec::new(),
++            });
++        });
++        let tokens = crate::derive_template(input, import_askama);
++        let sources = STATE.with(|state| {
++            state
++                .borrow_mut()
++                .as_mut()
++                .map(|state| std::mem::take(&mut state.sources))
++                .unwrap_or_default()
++        });
++        drop(reset);
++        Expansion { tokens, sources }
++    }
++
++    pub(crate) fn active() -> bool {
++        STATE.with(|state| state.borrow().is_some())
++    }
++
++    pub(crate) fn manifest_dir() -> Option<PathBuf> {
++        STATE.with(|state| Some(state.borrow().as_ref()?.host.manifest_dir().to_owned()))
++    }
++
++    pub(crate) fn caller_dir() -> Option<PathBuf> {
++        STATE.with(|state| {
++            let state = state.borrow();
++            let file = state.as_ref()?.host.caller_file()?;
++            Some(file.parent()?.to_owned())
++        })
++    }
++
++    /// `None` when no host is set, so the caller reads the file system as a compiler would.
++    pub(crate) fn read(path: &Path) -> Option<io::Result<String>> {
++        // The host is cloned out first, so a host that reads through the generator again
++        // cannot find the state borrowed.
++        let host = STATE.with(|state| Some(Rc::clone(&state.borrow().as_ref()?.host)))?;
++        Some(host.read(path))
++    }
++
++    /// A located span source for a template file, recorded in [`Expansion::sources`].
++    pub(crate) fn source_span(path: &Arc<Path>, source: &str) -> Option<SourceSpan> {
++        STATE.with(|state| {
++            let mut state = state.borrow_mut();
++            let state = state.as_mut()?;
++            let hashes = "#".repeat(raw_hashes_needed(source));
++            // A raw literal holds the text unescaped, so offsets inside it are the file's.
++            let literal: Literal = format!("r{hashes}\"{source}\"{hashes}").parse().ok()?;
++            let prefix = hashes.len() + 2;
++            let start = literal.span().byte_range().start + prefix;
++            state
++                .sources
++                .push((Arc::clone(path), start..start + source.len()));
++            Some(SourceSpan::located(literal, prefix, source.len()))
++        })
++    }
++
++    /// The fewest `#`s that no `"` in `source` is followed by.
++    fn raw_hashes_needed(source: &str) -> usize {
++        let bytes = source.as_bytes();
++        bytes
++            .iter()
++            .enumerate()
++            .filter(|&(_, &byte)| byte == b'"')
++            .map(|(at, _)| bytes[at + 1..].iter().take_while(|&&c| c == b'#').count() + 1)
++            .max()
++            .unwrap_or(0)
++    }
++
++    #[cfg(test)]
++    mod tests {
++        use super::raw_hashes_needed;
++
++        #[test]
++        fn a_raw_literal_needs_one_more_hash_than_any_quote_is_followed_by() {
++            assert_eq!(raw_hashes_needed("plain"), 0);
++            assert_eq!(raw_hashes_needed(r#"a "quote""#), 1);
++            assert_eq!(raw_hashes_needed(r###"end "## here"###), 3);
++        }
++    }
++}
++
++#[cfg(not(feature = "tooling"))]
++mod imp {
++    use std::io;
++    use std::path::{Path, PathBuf};
++    use std::sync::Arc;
++
++    use crate::spans::SourceSpan;
++
++    pub(crate) fn active() -> bool {
++        false
++    }
++
++    pub(crate) fn manifest_dir() -> Option<PathBuf> {
++        None
++    }
++
++    pub(crate) fn caller_dir() -> Option<PathBuf> {
++        None
++    }
++
++    pub(crate) fn read(_: &Path) -> Option<io::Result<String>> {
++        None
++    }
++
++    pub(crate) fn source_span(_: &Arc<Path>, _: &str) -> Option<SourceSpan> {
++        None
++    }
++}

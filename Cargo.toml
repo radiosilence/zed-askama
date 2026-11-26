@@ -1,0 +1,45 @@
+[workspace]
+members = ["crates/*"]
+# Upstream code with our tooling patch, built as a dependency but not held to
+# this workspace's lints; scripts/vendor-askama.py owns its contents.
+exclude = ["vendor"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/radiosilence/zed-askama"
+publish = false
+
+[workspace.dependencies]
+askama-analyzer-codegen = { path = "crates/askama-analyzer-codegen" }
+# Exact pins: askama_derive requires this exact parser, and the vendored
+# generator is the release the analyser understands. scripts/vendor-askama.py
+# reads the version from here.
+askama_parser = { version = "=0.16.1", default-features = false, features = ["config"] }
+askama_derive = { path = "vendor/askama_derive", version = "=0.16.1", default-features = false, features = [
+    "alloc",
+    "code-in-doc",
+    "config",
+    "external-sources",
+    "serde_json",
+    "std",
+    "tooling",
+    "urlencode",
+] }
+proc-macro2 = { version = "1.0.107", default-features = false, features = ["span-locations"] }
+quote = { version = "1", default-features = false }
+syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit", "clone-impls"] }
+thiserror = "2"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,225 @@
+name: CI/CD
+
+# CI checks the change and ends in `Checks`, the one status the ruleset
+# requires. Each job runs only for the domains the change touches (see
+# `changes`); a skipped job passes `Checks`, a failed or cancelled one fails
+# it, so jobs can be added, renamed or skipped without touching branch
+# protection. CD (the release builds and publishing) joins this workflow with
+# the release pipeline.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # GitHub evicts a cache not read for 7 days, and this repository can go
+  # quiet for longer. Building twice a week on main keeps the entries alive; a
+  # scheduled run checks everything and delivers nothing.
+  schedule:
+    - cron: "0 6 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+# A pull request's newer push cancels its older run, and so does a newer push
+# to main, since nothing here releases yet. A manual run is never cancelled.
+concurrency:
+  group: "ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || 'main' }}"
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      vendor: ${{ steps.filter.outputs.vendor }}
+      changelog: ${{ steps.filter.outputs.changelog }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      deps: ${{ steps.filter.outputs.deps }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - id: filter
+        env:
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        # The domains a change touches, from its diff: a pull request's against
+        # its base, a push's against the last commit on main whose run passed,
+        # so a push whose run the next one cancelled is still checked. A manual
+        # or scheduled run, or a diff that cannot be worked out, runs
+        # everything.
+        #
+        # Allowlists, so the question is "did any source of this domain
+        # change?". The cost is that a new top-level directory of code is
+        # invisible here until it is added below. Markdown is documentation
+        # wherever it sits, except to the changelog, whose fragments are
+        # Markdown.
+        #
+        # Steps run under `bash -e`, where grep finding nothing is a failing
+        # command rather than an answer, so every question is asked in a
+        # condition.
+        run: |
+          rust=true vendor=true changelog=true workflows=true deps=true
+          base=HEAD^1
+          if [ "$EVENT" = "push" ]; then
+            base=
+            passed=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-cd.yml --branch main --event push \
+              --status success --limit 1 --json headSha --jq '.[0].headSha // empty' || true)
+            if [ "$passed" = "$(git rev-parse HEAD)" ]; then
+              base=HEAD^1
+            elif [ -n "$passed" ] && git fetch -q --deepen=200 origin main && git merge-base --is-ancestor "$passed" HEAD; then
+              base=$passed
+            else
+              echo "::notice::no passed run on main within reach -- running everything"
+            fi
+          fi
+          touches() { [ "$(grep -E "$1" <<< "$files" | grep -cvE '\.md$')" -gt 0 ]; }
+          if { [ "$EVENT" = push ] || [ "$EVENT" = pull_request ]; } && [ -n "$base" ] && files=$(git diff --name-only "$base" HEAD); then
+            echo "changes since $(git rev-parse --short "$base"):"
+            printf '%s\n' "$files" | sed 's/^/  /'
+            # Anything cargo compiles or that decides how, including the
+            # vendored generator.
+            touches '^crates/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
+            # The vendored generator must stay upstream's release plus our
+            # patch, and its version follows the parser pin in Cargo.toml.
+            touches '^vendor/|^scripts/vendor-askama\.py$|^Cargo\.toml$|^\.github/' || vendor=false
+            touches '^\.github/(workflows|actions)/' || workflows=false
+            # A new advisory can land on any day against an unchanged
+            # lockfile, so main audits every push; a pull request only when it
+            # changes what is resolved or how the audit reads it.
+            if [ "$EVENT" = "pull_request" ]; then
+              touches '^Cargo\.lock$|Cargo\.toml$|^\.cargo/|^\.github/' || deps=false
+            fi
+            [ "$(grep -cE '^changelog\.d/|^CHANGELOG\.md$|^scripts/(test_)?changelog\.py$|^\.github/' <<< "$files")" -gt 0 ] || changelog=false
+          fi
+          {
+            echo "rust=$rust"
+            echo "vendor=$vendor"
+            echo "changelog=$changelog"
+            echo "workflows=$workflows"
+            echo "deps=$deps"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  # Formatting, clippy over every target with warnings as errors, and the
+  # tests: what `just check` runs. Each step runs however an earlier one went,
+  # so one push reports every failure.
+  check:
+    name: Check
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - id: cache
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          shared-key: check
+          # A branch's cache helps no other branch and evicts main's.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Run tests
+        if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
+        run: cargo test --workspace --locked
+
+  # vendor/askama_derive must be askama_derive at the version Cargo.toml pins
+  # askama_parser to, with vendor/askama_derive-tooling.patch applied and
+  # nothing else: an edit made there by hand would be lost at the next
+  # re-vendoring, and a patch that stops applying to a new release must fail
+  # here rather than ship half applied.
+  vendor:
+    name: Vendored generator
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.vendor == 'true'
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 scripts/vendor-askama.py --check
+
+  # CHANGELOG.md is generated from changelog.d/ (scripts/changelog.py). A pull
+  # request adds fragments without regenerating it, so only its fragments and
+  # the released versions are checked; one that writes CHANGELOG.md, as a
+  # release does, must write exactly what the fragments make.
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.changelog == 'true'
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+      - run: python3 -m unittest scripts/test_changelog.py
+      - env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ] && git diff --name-only HEAD^1 HEAD | grep -qx CHANGELOG.md; then
+            python3 scripts/changelog.py --check
+          else
+            python3 scripts/changelog.py --lint
+          fi
+
+  actionlint:
+    name: Actionlint
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The image bundles shellcheck, which checks the `run:` scripts.
+      - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
+
+  # Blocking: cargo-audit's exit code is the gate. An advisory already in the
+  # lockfile is acknowledged in .cargo/audit.toml with why it does not reach
+  # this build, so this fails on anything new.
+  audit:
+    name: Security audit
+    runs-on: ubuntu-24.04
+    needs: changes
+    if: needs.changes.outputs.deps == 'true'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: cargo install cargo-audit --locked --version 0.23.0
+      - run: cargo audit
+
+  # The one status the ruleset requires. Skipped jobs are domains the change
+  # does not touch and pass; anything failed or cancelled fails it.
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [changes, check, vendor, changelog, actionlint, audit]
+    if: always()
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | .key')
+          if [ -n "$bad" ]; then
+            echo "::error::not passed: ${bad//$'\n'/ }"
+            exit 1
+          fi
