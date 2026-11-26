@@ -29,7 +29,11 @@ use syn::visit::Visit;
 /// The share of names in templates' tags that must map back, measured at 0.16.1 (see the
 /// test's output for the current figure). Names that never reach Rust as written, such as
 /// block and macro names, keep it below 1.
-const COVERAGE_FLOOR: f64 = 0.0;
+const COVERAGE_FLOOR: f64 = 0.63;
+
+/// The items `syn` finds in askama's 0.16.1 tests: 494 of the 505 deriving `Template`, the
+/// rest written inside `macro_rules!` bodies, whose sources are macro arguments.
+const ITEMS_FLOOR: usize = 494;
 
 /// askama's generator recurses deeply on its fuzzed inputs.
 const STACK_SIZE: usize = 256 * 1024 * 1024;
@@ -238,6 +242,8 @@ struct Outcome {
 struct Coverage {
     names: usize,
     mapped: usize,
+    /// How often each name that did not map was written, for the report.
+    unmapped: HashMap<String, usize>,
 }
 
 /// Checks one item's output; returns its failures.
@@ -257,6 +263,11 @@ fn check_item(
     let files = disk.0.borrow();
     // Mapped ranges per template file, and per inline source (as item ranges).
     let mut mapped: HashMap<Option<Arc<Path>>, Vec<Range<usize>>> = HashMap::new();
+    // Each identifier range of template text that tokens map to, and whether one of them is
+    // that identifier.
+    let mut names: HashMap<(Option<Arc<Path>>, Range<usize>), (String, bool)> = HashMap::new();
+    let inline = inline_source(item_text)
+        .and_then(|source| item_text.find(source).map(|start| start..start + source.len()));
     for mapping in &generated.map {
         let token = &generated.code[mapping.generated.clone()];
         let (source, range, owner) = match &mapping.origin {
@@ -279,41 +290,51 @@ fn check_item(
             ));
             continue;
         };
+        // askama gives a whole expression's span to the helper tokens it writes around a
+        // name, so one range collects several tokens; the name itself must be among them.
         if is_identifier(token) && is_identifier(original) {
             let bare = |text: &str| text.strip_prefix("r#").unwrap_or(text).to_owned();
-            if bare(token) != bare(original) {
-                failures.push(format!(
-                    "{key}: identifier `{token}` maps to `{original}` at {range:?}"
-                ));
+            let in_template = owner.is_some() || inline.as_ref().is_some_and(|literal| literal.start <= range.start && range.end <= literal.end);
+            if in_template {
+                let entry = names.entry((owner.clone(), range.clone())).or_insert((bare(original), false));
+                entry.1 |= bare(token) == entry.0;
             }
         }
         mapped.entry(owner).or_default().push(range);
     }
+    for ((owner, range), (name, found)) in &names {
+        if !found {
+            let place = owner.as_ref().map_or_else(|| "the inline source".to_owned(), |path| path.display().to_string());
+            failures.push(format!("{key}: no token from `{name}` at {range:?} in {place} is `{name}`"));
+        }
+    }
 
     // Coverage over the item's template files; inline sources count where the literal's text
     // can be found verbatim in the item, so offsets line up.
-    let mut count =
-        |names: Vec<Range<usize>>, offset: usize, ranges: Option<&Vec<Range<usize>>>| {
-            for name in names {
-                let name = name.start + offset..name.end + offset;
-                coverage.names += 1;
-                if ranges.is_some_and(|ranges| {
-                    ranges
-                        .iter()
-                        .any(|r| r.start <= name.start && name.end <= r.end)
-                }) {
-                    coverage.mapped += 1;
-                }
+    let mut count = |text: &str, offset: usize, ranges: Option<&Vec<Range<usize>>>| {
+        for name in tag_names(text) {
+            let word = &text[name.clone()];
+            let name = name.start + offset..name.end + offset;
+            coverage.names += 1;
+            if ranges.is_some_and(|ranges| {
+                ranges
+                    .iter()
+                    .any(|r| r.start <= name.start && name.end <= r.end)
+            }) {
+                coverage.mapped += 1;
+            } else {
+                *coverage.unmapped.entry(word.to_owned()).or_default() += 1;
             }
-        };
+        }
+    };
     for path in &generated.templates {
         if let Some(text) = files.get(&**path) {
-            count(tag_names(text), 0, mapped.get(&Some(Arc::clone(path))));
+            count(text, 0, mapped.get(&Some(Arc::clone(path))));
         }
     }
     if let Some(source) = inline_source(item_text) {
         if let Some(offset) = item_text.find(source) {
-            count(tag_names(source), offset, mapped.get(&None));
+            count(source, offset, mapped.get(&None));
         }
     }
 }
@@ -443,12 +464,21 @@ fn run() {
         coverage.names,
         share * 100.0,
     );
+    let mut unmapped: Vec<_> = coverage.unmapped.iter().collect();
+    unmapped.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    let listing: Vec<String> = unmapped
+        .iter()
+        .take(20)
+        .map(|(word, count)| format!("{word} {count}"))
+        .collect();
+    eprintln!("most often unmapped: {}", listing.join(", "));
+    eprintln!("slowest:");
     for outcome in outcomes.iter().take(10) {
         eprintln!("  {:>9.2?}  {}", outcome.elapsed, outcome.key);
     }
 
     assert!(
-        outcomes.len() > 500,
+        outcomes.len() >= ITEMS_FLOOR,
         "found only {} template items in askama's tests",
         outcomes.len()
     );

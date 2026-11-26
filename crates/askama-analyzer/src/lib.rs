@@ -6,6 +6,7 @@
 
 pub mod analysis;
 pub mod check;
+pub mod format;
 pub mod generator;
 pub mod index;
 pub mod project;

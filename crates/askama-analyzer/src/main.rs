@@ -1,5 +1,5 @@
-//! `askama-analyzer`: a language server for askama templates, and a `check` command that runs
-//! the same analysis from a terminal.
+//! `askama-analyzer`: a language server for askama templates, a `check` command that runs
+//! the same analysis from a terminal, and `fmt`, the template formatter.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -22,6 +22,16 @@ enum Command {
     Check {
         #[arg(default_value = ".")]
         path: PathBuf,
+    },
+    /// Format templates in place: the files given, or every file under a `templates`
+    /// directory in the directories given. Only the inside of tags changes.
+    Fmt {
+        /// List the templates that are not formatted, and exit 1 if there are any, instead of
+        /// writing them.
+        #[arg(long)]
+        check: bool,
+        #[arg(default_value = ".")]
+        paths: Vec<PathBuf>,
     },
 }
 
@@ -50,6 +60,7 @@ fn main() -> ExitCode {
     let result = match cli.command.unwrap_or(Command::Lsp) {
         Command::Lsp => runtime.block_on(askama_analyzer::server::run()),
         Command::Check { path } => runtime.block_on(askama_analyzer::check::run(&path)),
+        Command::Fmt { check, paths } => askama_analyzer::format::run(check, &paths),
     };
     match result {
         Ok(code) => code,
