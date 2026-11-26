@@ -1,5 +1,5 @@
 [package]
-name = "askama-analyzer-grammar"
+name = "tree-sitter-askama"
 description = "Tree-sitter grammar for Askama templates"
 version.workspace = true
 edition.workspace = true
