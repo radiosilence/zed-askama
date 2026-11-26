@@ -3,7 +3,7 @@
 Askama support for Zed. The repository ships two things at one version:
 
 - `grammar/`: a tree-sitter grammar for askama templates;
-- `editors/zed/`: the Zed extension, which provides the languages and queries and finds or downloads the language server.
+- the Zed extension, at the root (`extension.toml`, `languages/`, `snippets/`, `src/`), which provides the languages and queries and finds or downloads the language server.
 
 The language server, `askama-analyzer`, lives in [radiosilence/askama-analyzer](https://github.com/radiosilence/askama-analyzer) and is released there; the extension downloads its latest release. Its users are Zed users, through Zed's extension registry. Issue #1 holds the plan and the reasons behind it. The [kōan standard](https://github.com/radiosilence/koan/blob/main/STANDARD.md) applies throughout.
 
@@ -34,10 +34,10 @@ One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only requir
 
 - **The extension's grammar `rev` names a pushed commit whose `grammar/src` matches `HEAD`'s.** Zed builds the grammar from that commit, never from the extension's own checkout, so a grammar change is only live once `rev` moves; CI fails while they differ.
 - **`grammar/src` is generated** by `tree-sitter generate` at the version `mise.toml` pins, and committed because Zed compiles it without generating; CI fails when it is stale.
-- **Every version file states one version.** The workspace `Cargo.toml`, `editors/zed/Cargo.toml`, `editors/zed/extension.toml` and `grammar/tree-sitter.json` move together through `scripts/versions.py --set`; CI fails when they disagree. askama-analyzer has its own version.
-- **The server's release archive names are a contract.** `server_asset` in `editors/zed/src/lib.rs` downloads `askama-analyzer-<target>.tar.gz` (or `.zip` on Windows) from radiosilence/askama-analyzer's latest release by name.
+- **Every version file states one version.** The workspace `Cargo.toml` (which the extension's package inherits) and `extension.toml` move together through `scripts/versions.py --set`; CI fails when they disagree. askama-analyzer has its own version. `grammar/tree-sitter.json`'s version is not one of them: `tree-sitter generate` writes it into the parser, so a release that moved it would no longer match the grammar `rev` it pins.
+- **The server's release archive names are a contract.** `server_asset` in `src/lib.rs` downloads `askama-analyzer-<target>.tar.gz` (or `.zip` on Windows) from radiosilence/askama-analyzer's latest release by name.
 - **The initialization options are a contract with the server.** `rustAnalyzer: { path, args, env, initializationOptions, settings }` is what askama-analyzer reads; the server reads it leniently, so the two release independently, and a field is added, never renamed.
-- **The extension is a workspace of its own.** `editors/zed` has its own `[workspace]` and `Cargo.lock` and is excluded from the root workspace, because Zed's builder runs cargo inside it and the registry may package it alone; `just extension` checks it.
+- **The extension is the workspace's root package.** Zed's builder runs cargo at the root for wasm32-wasip2, which builds the root package alone, so the grammar's crate is a member for its tests and never part of the extension; `just extension` builds it as Zed does.
 - **`vendor/askama-testing` is askama's test suite at the pinned release**, written by `scripts/vendor-askama-testing.py`; the grammar's differential test reads it, and `askama_parser` is pinned exactly to the same release.
 
 ## Where things live
@@ -45,6 +45,6 @@ One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only requir
 | Path | What |
 |---|---|
 | `grammar/` | The tree-sitter grammar (`grammar.js`, the external scanner in `src/scanner.c`), its corpus, and `tests/askama_corpus.rs`, which holds it to `askama_parser`; `test/divergences.txt` lists what the parser rejects beyond syntax |
-| `editors/zed/` | The Zed extension: `extension.toml`, `languages/askama-{html,markdown,text}` (the Markdown and Text queries are symlinks to the HTML ones), snippets, and `src/lib.rs`, which finds or downloads `askama-analyzer` and rust-analyzer and passes the user's settings to the server |
+| `extension.toml`, `languages/`, `snippets/`, `src/` | The Zed extension: `extension.toml`, `languages/askama-{html,markdown,text}` (the Markdown and Text queries are symlinks to the HTML ones), snippets, and `src/lib.rs`, which finds or downloads `askama-analyzer` and rust-analyzer and passes the user's settings to the server |
 | `scripts/release.sh`, `scripts/versions.py`, `scripts/registry-pr.sh`, `docs/releasing.md` | The release pull request, the one-version check, the registry draft, and how they fit |
 | `vendor/askama-testing`, `scripts/vendor-askama-testing.py` | askama's test suite and the script that vendors it |

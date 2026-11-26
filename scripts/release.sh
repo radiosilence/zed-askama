@@ -75,13 +75,12 @@ python3 scripts/versions.py --set "$version"
 # hold this release's grammar/src. origin/main is both: the release branch
 # starts from it and changes no grammar.
 rev=$(git rev-parse origin/main)
-sed -i.bak "s/^rev = \".*\"/rev = \"$rev\"/" editors/zed/extension.toml
-rm -f editors/zed/extension.toml.bak
-grep -q "^rev = \"$rev\"" editors/zed/extension.toml
+sed -i.bak "s/^rev = \".*\"/rev = \"$rev\"/" extension.toml
+rm -f extension.toml.bak
+grep -q "^rev = \"$rev\"" extension.toml
 
-# Only the workspaces' own entries change in the lockfiles.
+# Only the workspace's own entries change in the lockfile.
 cargo update --workspace
-cargo update --workspace --manifest-path editors/zed/Cargo.toml
 
 python3 scripts/changelog.py --release "$version"
 
