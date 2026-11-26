@@ -1,9 +1,0 @@
-
-{%- match n -%}
-    {%- when 1 | 2 | 3 | 4 -%}
-        a listed one!
-    {%- when 6 | 7 -%}
-        another listed one!
-    {%- when n -%}
-        {{ n }}
-{%- endmatch -%}

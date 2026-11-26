@@ -1,7 +1,0 @@
-
-{%- let x = **title -%}
-{%- if x == "another" -%}
-another2
-{%- else -%}
-{{x}}
-{%- endif -%}

@@ -1,2 +1,0 @@
-
-{% let mut Some(a) = Some("a") %}

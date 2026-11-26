@@ -1,13 +1,11 @@
 ================================================================================
 Filter blocks take filter chains
 ================================================================================
-
 {% filter lower|capitalize %}TEXT{% endfilter %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (filter_block
     (filter_tag
       (filter
@@ -21,13 +19,11 @@ Filter blocks take filter chains
 ================================================================================
 Filter blocks take path filters with arguments
 ================================================================================
-
 {% filter kit::wrap(kit::Disclosure::new("x").open(y)) %}body{% endfilter %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (filter_block
     (filter_tag
       (filter

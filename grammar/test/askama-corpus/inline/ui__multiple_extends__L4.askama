@@ -1,3 +1,0 @@
-
-{% extends "let.html" %}
-{% extends "foo.html" %}

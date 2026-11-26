@@ -1,1 +1,0 @@
-{{ NonZeroU32::new(*value) | assigned_or("unknown") }}

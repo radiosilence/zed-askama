@@ -1,5 +1,0 @@
-{% extends "base-decl.txt" %}
-{%- block extended -%}
---> {{ variable }}
-{% include "use-var.txt" -%}
-{% endblock %}

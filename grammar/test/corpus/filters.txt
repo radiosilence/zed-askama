@@ -1,13 +1,11 @@
 ================================================================================
 A filter applies to the expression before it
 ================================================================================
-
 {{ name|lower }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (filter_expression
       (identifier)
@@ -18,13 +16,11 @@ A filter applies to the expression before it
 ================================================================================
 Filters chain and take arguments
 ================================================================================
-
 {{ name|truncate(10)|e("html") }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (filter_expression
       (filter_expression
@@ -43,13 +39,11 @@ Filters chain and take arguments
 ================================================================================
 Filters may be paths with generics
 ================================================================================
-
 {{ x|kit::wrap }}{{ x|filters::cast::<u8>(1) }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (filter_expression
       (identifier)
@@ -74,13 +68,11 @@ Filters may be paths with generics
 ================================================================================
 A double bar is logical or, not a filter
 ================================================================================
-
 {{ a || b|f }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (binary_expression
       (identifier)

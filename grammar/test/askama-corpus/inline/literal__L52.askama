@@ -1,2 +1,0 @@
-{% if let Some(b"hi") = Some(data) %}bc{% endif %}
-{%- if let x = c"hi" %} hoy{% endif %}

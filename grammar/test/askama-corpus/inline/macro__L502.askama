@@ -1,7 +1,0 @@
-
-{%- macro samescope(optarg=1+2) -%}
-{{ optarg }}
-{% endmacro -%}
-
-{{- samescope() -}}
-{{- samescope(1) -}}

@@ -1,7 +1,0 @@
-
-            {%- match self -%}
-                {%- when Self::Square(side) -%}      {{side}}^2
-                {%- when Self::Rectangle { a, b} -%} {{a}} * {{b}}
-                {%- when Self::Circle { radius } -%} pi * {{radius}}^2
-            {%- endmatch -%}
-        

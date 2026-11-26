@@ -1,4 +1,0 @@
-
-{% block bla %}
-{% extends "bla.txt" %}
-{% endblock %}

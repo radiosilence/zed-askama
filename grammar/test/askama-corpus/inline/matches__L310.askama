@@ -1,5 +1,0 @@
-
-{%- match self %}
-    {%- when Self::A %}A
-    {%- when Self::B %}B
-{%- endmatch %}

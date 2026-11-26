@@ -1,4 +1,0 @@
-{{ "<h1 class=\"title\">Foo Bar</h1>"|escape("none") }}
-{{ "<h1 class=\"title\">Foo Bar</h1>"|escape("html") }}
-{{ "<h1 class=\"title\">Foo Bar</h1>"|escape }}
-{{ "<h1 class=\"title\">Foo Bar</h1>" }}

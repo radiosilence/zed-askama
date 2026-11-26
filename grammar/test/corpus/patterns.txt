@@ -1,13 +1,11 @@
 ================================================================================
 Let destructures tuples and slices
 ================================================================================
-
 {% let (a, b) = pair %}{% let [first, .., last] = xs %}{% let [head, rest @ ..] = xs %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (let_statement
     (tuple_pattern
       (identifier)
@@ -31,13 +29,11 @@ Let destructures tuples and slices
 ================================================================================
 When matches tuple struct patterns with and without with
 ================================================================================
-
 {% match v %}{% when Some with (x) %}{% when Ok(y) %}{% endmatch %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (match_block
     (match_tag
       (identifier))
@@ -57,13 +53,11 @@ When matches tuple struct patterns with and without with
 ================================================================================
 When matches struct patterns
 ================================================================================
-
 {% match b %}{% when Body::Refile with { change, into, moves } %}{% when Point { x: 0, .. } %}{% endmatch %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (match_block
     (match_tag
       (identifier))
@@ -93,13 +87,11 @@ When matches struct patterns
 ================================================================================
 When alternatives use the bar and or
 ================================================================================
-
 {% match n %}{% when 1 | 2 %}{% when 3 or 4 %}{% when -5 %}{% when _ %}{% endmatch %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (match_block
     (match_tag
       (identifier))
@@ -124,13 +116,11 @@ When alternatives use the bar and or
 ================================================================================
 Literal patterns cover strings, characters and booleans
 ================================================================================
-
 {% match x %}{% when "a" %}{% when 'b' %}{% when true %}{% when 1.5 %}{% endmatch %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (match_block
     (match_tag
       (identifier))

@@ -1,6 +1,0 @@
-
-{% macro testmacro() %}
-    {{caller()}}
-{% endmacro %}
-{{ testmacro() }}
-    

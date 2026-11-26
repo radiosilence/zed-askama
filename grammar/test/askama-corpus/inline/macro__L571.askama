@@ -1,3 +1,0 @@
-
-{%- import "macro-import-callexpr.html" as otherscope -%}
-{{- otherscope::intermediate() -}}

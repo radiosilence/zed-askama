@@ -1,9 +1,0 @@
-
-{%- macro testmacro(arg0 = "-", arg1 = 5) -%}
-    {{ arg0 }} | {{ arg1 }};
-{%- endmacro -%}
-{{- testmacro() }}
-{{- testmacro("a") }}
-{{- testmacro("b", 1337) }}
-{{- testmacro("c", arg1 = 1338) }}
-{{- testmacro(arg0 = "d", arg1 = 1339) -}}

@@ -1,1 +1,0 @@
-I have {{ count }} butterfl{{ count | pluralize("y", pl = "ies") }}.

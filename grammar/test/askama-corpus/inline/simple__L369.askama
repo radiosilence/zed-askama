@@ -1,1 +1,0 @@
-Hello, {{ Self::world3(self, "123", 4) }}!

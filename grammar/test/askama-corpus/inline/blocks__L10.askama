@@ -1,6 +1,0 @@
-
-            {%- block first -%} first=<{{first}}> {%- endblock -%}
-            {%- block second -%} second=<{{second}}> {%- endblock -%}
-            {%- block third -%} third=<{{third}}> {%- endblock -%}
-            {%- block fail -%} better luck next time {%- endblock -%}
-        

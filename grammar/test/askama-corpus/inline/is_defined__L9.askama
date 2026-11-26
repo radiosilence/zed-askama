@@ -1,7 +1,0 @@
-<script>
-const x = {{ x is defined }};
-const y = {{ y is not defined }};
-const z = {{ y is defined }};
-const w = {{ x is not defined }};
-const v = {{ y }};
-</script>

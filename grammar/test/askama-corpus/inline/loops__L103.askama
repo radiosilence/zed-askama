@@ -1,1 +1,0 @@
-{% for i in ::std::iter::repeat("a").take(5) %}{{ i }}{% endfor %}

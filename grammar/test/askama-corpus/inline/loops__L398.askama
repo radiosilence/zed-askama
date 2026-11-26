@@ -1,1 +1,0 @@
-{% for v in values %}{{loop.cycle(cycle)}}{{v}},{% endfor %}

@@ -1,1 +1,0 @@
-{{name}}<{% for child in children %}{{ child }},{% endfor %}>

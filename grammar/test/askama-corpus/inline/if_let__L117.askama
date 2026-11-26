@@ -1,7 +1,0 @@
-{%- if s.is_none() -%}
-empty
-{%- elif let Some(a) = s -%}
-{{a}}
-{%- else -%}
-else
-{%- endif -%}

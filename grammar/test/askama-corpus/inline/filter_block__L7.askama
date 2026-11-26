@@ -1,5 +1,0 @@
-{% filter lower %}
-    {{ t }} / HELLO / {{ u }}
-{% endfilter %}
-
-{{ u|lower }}

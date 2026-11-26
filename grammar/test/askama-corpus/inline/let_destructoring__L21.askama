@@ -1,1 +1,0 @@
-{% let UnnamedStruct(a, b, c) = v %}{{a}}{{b}}{{c}}

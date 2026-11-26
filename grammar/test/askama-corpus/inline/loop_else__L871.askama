@@ -1,3 +1,0 @@
-a {%-for v in values-%}	{{v}}	{%-else-%}
-X
-{% endfor-%} b

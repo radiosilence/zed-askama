@@ -1,6 +1,0 @@
-
-            {%- match "data" | value::<&str> -%}
-                {%- when Ok(data) -%} ok={{ data }}
-                {%- when Err(err) -%} err={{ err }}
-            {%- endmatch -%}
-        

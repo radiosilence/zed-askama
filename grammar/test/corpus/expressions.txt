@@ -1,13 +1,11 @@
 ================================================================================
 Binary operators follow askama's precedence
 ================================================================================
-
 {{ a || b && c == d bitor e xor f bitand g << h + i ~ j * k }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (binary_expression
       (identifier)
@@ -35,13 +33,11 @@ Binary operators follow askama's precedence
 ================================================================================
 Concatenation is a binary operator
 ================================================================================
-
 {{ a ~ b ~ c }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (binary_expression
       (binary_expression
@@ -53,13 +49,11 @@ Concatenation is a binary operator
 ================================================================================
 Prefix operators bind tighter than filters
 ================================================================================
-
 {{ -x|abs }}{{ !y }}{{ *z }}{{ &w }}{{ &&v }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (filter_expression
       (unary_expression
@@ -84,13 +78,11 @@ Prefix operators bind tighter than filters
 ================================================================================
 Field access, indexing, calls and try chain as suffixes
 ================================================================================
-
 {{ loop.index }}{{ a.0.b[1]?.c(d) }}{{ self.items.len() }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (field_expression
       (identifier)
@@ -122,13 +114,11 @@ Field access, indexing, calls and try chain as suffixes
 ================================================================================
 Ranges may omit either end, including in an index
 ================================================================================
-
 {{ foo[..] }}{{ foo[1..] }}{{ foo[..=n] }}{{ a..b }}{{ ..c }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (index_expression
       (identifier)
@@ -155,13 +145,11 @@ Ranges may omit either end, including in an index
 ================================================================================
 Paths take turbofish generics
 ================================================================================
-
 {{ Vec::<u8>::new() }}{{ ::std::mem::take(x) }}{{ x.parse::<i32>() }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (call_expression
       (scoped_identifier
@@ -195,13 +183,11 @@ Paths take turbofish generics
 ================================================================================
 Calls take named arguments
 ================================================================================
-
 {{ m(a, b = 1, c = "x",) }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (call_expression
       (identifier)
@@ -219,13 +205,11 @@ Calls take named arguments
 ================================================================================
 Struct literals take shorthand, named and base fields
 ================================================================================
-
 {{ Point { x, y: 2, ..Default::default() } }}{{ T { 0: a } }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (struct_expression
       (type_identifier)
@@ -253,13 +237,11 @@ Struct literals take shorthand, named and base fields
 ================================================================================
 Tuples, groups, unit and arrays are distinct
 ================================================================================
-
 {{ () }}{{ (a) }}{{ (a,) }}{{ (a, b) }}{{ [] }}{{ [1, 2,] }}{{ [0; 4] }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (unit_expression))
   (expression_tag
@@ -287,13 +269,11 @@ Tuples, groups, unit and arrays are distinct
 ================================================================================
 is defined tests a variable
 ================================================================================
-
 {% if x is defined && y is not defined %}{% endif %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (if_block
     (if_tag
       (binary_expression
@@ -307,13 +287,11 @@ is defined tests a variable
 ================================================================================
 as casts to a primitive type
 ================================================================================
-
 {{ x as u8 }}{{ (a + b) as f64 }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (type_cast_expression
       (identifier)
@@ -330,13 +308,11 @@ as casts to a primitive type
 ================================================================================
 A comparison of a variable named after a keyword is an expression
 ================================================================================
-
 {% if set == 1 %}{% endif %}{% if let.is_some() %}{% endif %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (if_block
     (if_tag
       (binary_expression

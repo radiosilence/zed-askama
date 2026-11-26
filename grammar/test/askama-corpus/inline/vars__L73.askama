@@ -1,1 +1,0 @@
-{% for v in self.0 %}{{ v }}{% endfor %}

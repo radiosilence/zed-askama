@@ -1,8 +1,0 @@
-
-        {%- macro test(title: Option<u32> = None) -%}{% endmacro -%}
-        {%- let y = 12 -%}
-        {% call test(y) %}{% endcall -%}
-        {% call test(x) %}{% endcall -%}
-        {{ test(y) }}
-        {{ test(x) }}
-    

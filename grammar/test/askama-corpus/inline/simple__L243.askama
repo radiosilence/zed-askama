@@ -1,1 +1,0 @@
-{{ Self::foo(None) }} {{ Self::foo(Some(1)) }}

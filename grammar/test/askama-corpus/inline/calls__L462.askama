@@ -1,7 +1,0 @@
-
-{%- macro test() -%}
-    {%- set content = caller() -%}
-    -> `{{content}}` <-
-{%~ endmacro -%}
-{% call test() %}bla{% endcall -%}
-        

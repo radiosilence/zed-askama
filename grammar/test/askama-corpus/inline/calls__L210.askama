@@ -1,8 +1,0 @@
-
-{%- macro test(a) -%}
-{{- caller(a) -}}
-{%- endmacro -%}
-{%- call(value) test(a) -%}
-a: {{value.a}}
-b: {{value.b}}
-{%- endcall -%}

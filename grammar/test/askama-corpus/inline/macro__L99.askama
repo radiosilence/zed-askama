@@ -1,6 +1,0 @@
-
-{%- import "macro-with-caller.html" as parentscope -%}
-{%- call parentscope::outer() -%}
-    {%- call parentscope::intermediate() -%}{%- endcall -%}
-{%- endcall -%}
-    

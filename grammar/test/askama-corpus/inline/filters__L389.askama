@@ -1,3 +1,0 @@
-{% let word = s|ref %}{{ word }}
-{%- let hello = String::from("hello") %}
-{%- if word|deref == hello %}1{% else %}2{% endif %}

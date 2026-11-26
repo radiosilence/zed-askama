@@ -1,2 +1,0 @@
-{% macro duplicate(param1, param2=1) %}{% endmacro %}
-{% call duplicate(0, param1=1) %}{% endcall %}

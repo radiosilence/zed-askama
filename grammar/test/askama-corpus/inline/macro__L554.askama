@@ -1,4 +1,0 @@
-
-{%- import "nested-macro-callexpr.html" as otherscope -%}
-{% let child1 = "Test: Macros scoped by file" %}
-{{- otherscope::parent() -}}

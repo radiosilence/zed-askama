@@ -1,1 +1,0 @@
-{% if let Ok(bla) = askama::get_value::<u32>("a") %}{{bla}}{% endif %}

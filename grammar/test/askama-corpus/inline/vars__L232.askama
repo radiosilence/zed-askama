@@ -1,4 +1,0 @@
-
-{%- let mut x = [1, 2].iter() %}
-{{- x.next().unwrap() -}}
-{{- x.next().unwrap() -}}

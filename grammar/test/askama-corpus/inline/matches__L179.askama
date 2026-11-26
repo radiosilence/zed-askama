@@ -1,8 +1,0 @@
-
-{%- match good -%}
-    {#- when good, then good -#}
-    {%- when true -%}
-        good
-    {%- when _ -%}
-        bad
-{%- endmatch -%}

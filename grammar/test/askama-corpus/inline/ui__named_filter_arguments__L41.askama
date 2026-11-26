@@ -1,1 +1,0 @@
-Scream: {{ message | uppercase(case = "upper") }}

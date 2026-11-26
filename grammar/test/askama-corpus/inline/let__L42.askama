@@ -1,7 +1,0 @@
-{% if let Some(_) = Some(12) %}hey{% endif %}
-{% if let [_] = [12] %}hoy{% endif %}
-{% match [12] %}
-{%- when [_] %}matched
-{%- endmatch -%}
-{%- let _ = 2 -%}
-{%- let [_] = [2] -%}

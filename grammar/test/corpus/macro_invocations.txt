@@ -1,13 +1,11 @@
 ================================================================================
 Rust macro calls take arbitrary token trees
 ================================================================================
-
 {{ format!("{}", if a { b } else { c }) }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (macro_invocation
       (identifier)
@@ -26,13 +24,11 @@ Rust macro calls take arbitrary token trees
 ================================================================================
 A macro call may use a matches pattern with a guard
 ================================================================================
-
 {% if matches!(v, x if *x > 9) %}{% endif %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (if_block
     (if_tag
       (macro_invocation
@@ -49,13 +45,11 @@ A macro call may use a matches pattern with a guard
 ================================================================================
 Macro calls take every delimiter and paths
 ================================================================================
-
 {{ vec![1, 2] }}{{ std::concat!{"a", "b"} }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (macro_invocation
       (identifier)
@@ -77,13 +71,11 @@ Macro calls take every delimiter and paths
 ================================================================================
 Token trees take raw strings with any number of hashes
 ================================================================================
-
 {{ m!(r"a", r#"b"#, r###"c "## "###, br"d", cr#"e"#) }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (macro_invocation
       (identifier)
@@ -98,13 +90,11 @@ Token trees take raw strings with any number of hashes
 ================================================================================
 Token trees take lifetimes, comments and punctuation
 ================================================================================
-
 {{ m!('a, /* note */ x => y; $z @ #w) }}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (expression_tag
     (macro_invocation
       (identifier)

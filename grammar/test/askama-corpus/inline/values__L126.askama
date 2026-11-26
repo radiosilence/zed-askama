@@ -1,1 +1,0 @@
-Hello, {{ askama::get_value::<String>("who")? | upper }}!

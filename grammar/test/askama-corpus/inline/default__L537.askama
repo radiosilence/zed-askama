@@ -1,1 +1,0 @@
-{% decl var %}{{ var | default("unknown") }}{% if true %}{% let var = 42 %}{% endif %}

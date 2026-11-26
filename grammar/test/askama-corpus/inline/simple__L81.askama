@@ -1,1 +1,0 @@
-{{ foo }} {{ foo_bar }} {{ FOO }} {{ FOO_BAR }} {{ self::FOO }} {{ self::FOO_BAR }} {{ Self::BAR }} {{ Self::BAR_BAZ }}

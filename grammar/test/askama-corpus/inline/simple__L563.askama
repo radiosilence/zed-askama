@@ -1,1 +1,0 @@
-{{ input as u8 }} {{ &input as u8 }} {{ &&input as u8 }}

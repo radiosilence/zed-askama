@@ -1,1 +1,0 @@
-{% for (i, msg) in messages.iter().enumerate() %}{{i}}={{msg}}-{% endfor %}

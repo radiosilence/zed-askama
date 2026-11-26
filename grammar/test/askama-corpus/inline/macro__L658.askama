@@ -1,8 +1,0 @@
-
-{%- macro w(lol) -%}
-y: {{ lol -}}
-{% endmacro -%}
-
-{%- for x in &[0] -%}
-{%- call w(loop.index) %}{% endcall -%}
-{% endfor %}

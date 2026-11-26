@@ -1,1 +1,0 @@
-{% macro thrice(a, b, c= %}{% endmacro %}

@@ -1,5 +1,0 @@
-[
-            {%- for elem in [""; 0] -%}
-                {{ elem }}
-            {%- endfor -%}
-        ]

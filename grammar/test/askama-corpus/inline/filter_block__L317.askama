@@ -1,4 +1,0 @@
-
-    {%- filter urlencode|urlencode|urlencode|urlencode -%}
-        {{ msg.clone()? }}
-    {%~ endfilter %}

@@ -1,6 +1,0 @@
-
-{%- macro test_macro() -%}
-    {%- include "foo.html" -%}
-{%- endmacro -%}
-{%- call test_macro() %}{%- endcall -%}
-        

@@ -1,5 +1,0 @@
-{% block a -%} <a = {{ a }}> {%- endblock %}
-            {% block b -%} <b = {{ b }}> {%- endblock %}
-            {% block c -%} <c = {{ c }}> {%- endblock %}
-            {% block d -%} <d = {{ self::type_name_of_val(self) }}> {%- endblock %}
-        

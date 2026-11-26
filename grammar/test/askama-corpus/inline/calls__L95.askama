@@ -1,1 +1,0 @@
-{{ self::double_attr_arg_helper(self.x.0 + 2) }}

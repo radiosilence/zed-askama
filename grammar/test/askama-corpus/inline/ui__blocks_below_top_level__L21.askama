@@ -1,4 +1,0 @@
-
-{% block bla %}
-{% import "bla.txt" as blue %}
-{% endblock %}

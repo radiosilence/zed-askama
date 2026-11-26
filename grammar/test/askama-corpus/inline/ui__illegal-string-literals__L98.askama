@@ -1,1 +1,0 @@
-{{ c"hello \u{d83d} world" }}

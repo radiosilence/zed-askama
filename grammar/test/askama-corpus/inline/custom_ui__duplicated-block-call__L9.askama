@@ -1,3 +1,0 @@
-{% extends "extend-duplicated.html" %}
-{% block foo %}blob{% endblock %}
-{% block foo %}blob{% endblock %}

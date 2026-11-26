@@ -1,2 +1,0 @@
-
-{%- if let X { .., b } = x -%}hello {{ a }}{%- endif -%}

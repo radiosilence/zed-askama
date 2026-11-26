@@ -1,7 +1,0 @@
-
-        {%- let mut prefixsum = Cell::new(0u32) -%}
-        {%- for i in 0..limit -%}
-            {%- mut *prefixsum.get_mut() += i -%}
-            {{ prefixsum.get() }}.
-        {%- endfor -%}
-    

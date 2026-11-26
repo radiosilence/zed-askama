@@ -1,3 +1,0 @@
-
-{%- set t = title -%}
-{{t}}/{{title -}}

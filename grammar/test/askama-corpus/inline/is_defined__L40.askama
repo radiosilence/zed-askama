@@ -1,1 +1,0 @@
-{% if x is defined && x == 12 %}bli{% else %}bla{% endif %}

@@ -1,13 +1,11 @@
 ================================================================================
 Macro definitions take parameters with types and defaults
 ================================================================================
-
 {% macro button(label, kind: &str, size = 2,) %}{{ label }}{% endmacro button %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (macro_definition
     (macro_tag
       (identifier)
@@ -30,13 +28,11 @@ Macro definitions take parameters with types and defaults
 ================================================================================
 Macro definitions may omit the parameter list
 ================================================================================
-
 {% macro m %}x{% endmacro %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (macro_definition
     (macro_tag
       (identifier))
@@ -47,13 +43,11 @@ Macro definitions may omit the parameter list
 ================================================================================
 Call blocks take scoped names, arguments and caller parameters
 ================================================================================
-
 {% call(item) m::list(items, ordered = true) %}{{ item }}{% endcall %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (call_block
     (call_tag
       (caller_parameters
@@ -74,13 +68,11 @@ Call blocks take scoped names, arguments and caller parameters
 ================================================================================
 Call blocks may call caller
 ================================================================================
-
 {% macro m() %}{{ caller(1) }}{% endmacro %}{% call m() %}{% endcall %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (macro_definition
     (macro_tag
       (identifier)

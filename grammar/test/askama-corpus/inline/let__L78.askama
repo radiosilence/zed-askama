@@ -1,4 +1,0 @@
-
-{%- let x: usize = 12 %}{{x}}
-{% let x: String %}58{% endlet %}{{x}}
-{% let y: String %}tadam{% endlet %}{{y-}}

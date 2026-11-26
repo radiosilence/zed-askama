@@ -1,1 +1,0 @@
-{{ inner::InnerCell { number: 42 } }}

@@ -1,13 +1,11 @@
 ================================================================================
 Extends, include and import name a template
 ================================================================================
-
 {% extends "base.html" %}{% include "nav.html" %}{% import "macros.html" as m %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (extends_statement
     (string_literal
       (string_content)))
@@ -23,13 +21,11 @@ Extends, include and import name a template
 ================================================================================
 Block definitions close with an optional name
 ================================================================================
-
 {% block content %}x{% endblock %}{% block title %}{% endblock title %}
 
 --------------------------------------------------------------------------------
 
 (template
-  (content)
   (block_definition
     (block_tag
       (identifier))

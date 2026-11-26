@@ -1,0 +1,7 @@
+error: the token `{` was not expected at this point in the expression
+ --> <source attribute>:1:4
+       "{Ւ{"
+ --> tests/ui/fuzzing.rs:7:14
+  |
+7 |     source = r#"{{..{Ւ{"#,
+  |              ^^^^^^^^^^^^

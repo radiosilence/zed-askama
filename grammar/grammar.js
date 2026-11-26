@@ -152,8 +152,7 @@ module.exports = grammar({
     let_statement: ($) => seq(
       $._open,
       choice('let', 'set'),
-      optional($.mutable_specifier),
-      field('pattern', $._pattern),
+      $._let_binding,
       optional(seq(':', field('type', $._type))),
       '=',
       field('value', $._expression),
@@ -364,24 +363,41 @@ module.exports = grammar({
 
     endfilter_tag: ($) => seq($._branch, 'endfilter', $._block_end),
 
-    let_block: ($) => seq(
-      field('open', $.let_tag),
-      repeat(field('body', $._node)),
-      field('close', $.endlet_tag),
+    // `{% let x %}` with no value opens a block that `{% endlet %}` closes, and
+    // `{% set x %}` one that `{% endset %}` closes.
+    let_block: ($) => choice(
+      seq(
+        field('open', alias($._let_tag, $.let_tag)),
+        repeat(field('body', $._node)),
+        field('close', alias($._endlet_tag, $.endlet_tag)),
+      ),
+      seq(
+        field('open', alias($._set_tag, $.let_tag)),
+        repeat(field('body', $._node)),
+        field('close', alias($._endset_tag, $.endlet_tag)),
+      ),
     ),
 
-    // `{% let x %}` with no value opens a block; the parser rejects any pattern
-    // but a name there, which this grammar leaves to the language server.
-    let_tag: ($) => seq(
-      $._open,
-      choice('let', 'set'),
-      optional($.mutable_specifier),
-      field('pattern', $._pattern),
+    _let_tag: ($) => seq($._open, 'let', $._let_tag_binding, $._block_end),
+
+    _set_tag: ($) => seq($._open, 'set', $._let_tag_binding, $._block_end),
+
+    // The parser rejects any pattern but a name here, which this grammar leaves
+    // to the language server so the tag stays one node while being typed.
+    _let_tag_binding: ($) => seq(
+      $._let_binding,
       optional(seq(':', field('type', $._type))),
-      $._block_end,
     ),
 
-    endlet_tag: ($) => seq($._branch, choice('endlet', 'endset'), $._block_end),
+    // `mut` applies to a plain name only.
+    _let_binding: ($) => choice(
+      seq($.mutable_specifier, field('pattern', $.identifier)),
+      field('pattern', $._pattern),
+    ),
+
+    _endlet_tag: ($) => seq($._branch, 'endlet', $._block_end),
+
+    _endset_tag: ($) => seq($._branch, 'endset', $._block_end),
 
     raw_block: ($) => seq(
       field('open', $.raw_tag),
@@ -515,7 +531,18 @@ module.exports = grammar({
       field('arguments', $.arguments),
     )),
 
-    arguments: ($) => seq('(', commaSep(choice($._expression, $.named_argument)), ')'),
+    // Named arguments come after every positional one.
+    arguments: ($) => seq('(', optional($._positional_arguments), ')'),
+
+    _positional_arguments: ($) => choice(
+      seq($._expression, optional(seq(',', optional($._positional_arguments)))),
+      $._named_arguments,
+    ),
+
+    _named_arguments: ($) => seq(
+      $.named_argument,
+      optional(seq(',', optional($._named_arguments))),
+    ),
 
     named_argument: ($) => seq(
       field('name', $.identifier),
@@ -544,11 +571,15 @@ module.exports = grammar({
       field('body', $.field_initializer_list),
     )),
 
+    // The base (`..base`) comes last.
     field_initializer_list: ($) => seq(
       '{',
-      commaSep(choice($.shorthand_field_initializer, $.field_initializer, $.base_field_initializer)),
+      repeat(seq($._field_initializer, ',')),
+      optional(choice($._field_initializer, seq($.base_field_initializer, optional(',')))),
       '}',
     ),
+
+    _field_initializer: ($) => choice($.shorthand_field_initializer, $.field_initializer),
 
     shorthand_field_initializer: ($) => $.identifier,
 
@@ -618,7 +649,7 @@ module.exports = grammar({
 
     reference_type: ($) => seq('&', field('type', $._type)),
 
-    tuple_type: ($) => seq('(', commaSep1($._type), ')'),
+    tuple_type: ($) => seq('(', choice(commaSep1($._type), ','), ')'),
 
     unit_type: (_) => seq('(', ')'),
 
@@ -701,11 +732,13 @@ module.exports = grammar({
       ')',
     ),
 
+    // `..` comes last, with no comma after it.
     struct_pattern: ($) => seq(
       field('type', $._pattern_path),
       optional('with'),
       '{',
-      commaSep(choice($.field_pattern, $.remaining_field_pattern)),
+      repeat(seq($.field_pattern, ',')),
+      optional(choice($.field_pattern, $.remaining_field_pattern)),
       '}',
     ),
 
