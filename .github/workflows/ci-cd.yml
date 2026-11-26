@@ -9,11 +9,10 @@ name: CI/CD
 # protection.
 #
 # CD releases when a push to main changes the workspace version (a merged
-# release pull request, see docs/releasing.md). `askama-analyzer` is built for
-# every platform alongside the checks, the macOS builds signed and notarised;
-# once `Checks` and every build have passed, the archives are published as the
-# GitHub release with checksums and provenance, and the version bump is opened
-# on zed-industries/extensions as a draft.
+# release pull request, see docs/releasing.md): once `Checks` has passed, the
+# GitHub release is published with the changelog as notes, and the version
+# bump is opened on zed-industries/extensions as a draft. The language server
+# is released from radiosilence/askama-analyzer.
 on:
   push:
     branches: [main]
@@ -59,7 +58,6 @@ jobs:
       rust: ${{ steps.filter.outputs.rust }}
       grammar: ${{ steps.filter.outputs.grammar }}
       extension: ${{ steps.filter.outputs.extension }}
-      vendor: ${{ steps.filter.outputs.vendor }}
       changelog: ${{ steps.filter.outputs.changelog }}
       workflows: ${{ steps.filter.outputs.workflows }}
       deps: ${{ steps.filter.outputs.deps }}
@@ -91,7 +89,7 @@ jobs:
         # command rather than an answer, so every question is asked in a
         # condition.
         run: |
-          rust=true grammar=true extension=true vendor=true changelog=true workflows=true deps=true release=false
+          rust=true grammar=true extension=true changelog=true workflows=true deps=true release=false
           # The workspace version, which every other version file follows
           # (scripts/versions.py).
           version_of() { sed -n '/^\[workspace\.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' | head -1; }
@@ -148,22 +146,15 @@ jobs:
           elif { [ "$EVENT" = push ] || [ "$EVENT" = pull_request ]; } && [ -n "$base" ] && files=$(git diff --name-only "$base" HEAD); then
             echo "changes since $(git rev-parse --short "$base"):"
             printf '%s\n' "$files" | sed 's/^/  /'
-            # Anything cargo compiles or that decides how, including the
-            # vendored generator and the grammar's crate, whose tests read
-            # askama's vendored test suite.
-            touches '^crates/|^grammar/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
+            # Anything cargo compiles or that decides how: the grammar's
+            # crate, whose differential test reads askama's vendored test suite.
+            touches '^grammar/|^vendor/|^Cargo\.(toml|lock)$|^\.cargo/|^\.github/' || rust=false
             # The grammar, the Zed extension's queries over it, and the
             # askama test suite the grammar is held to.
             touches '^grammar/|^editors/zed/|^vendor/askama-testing/|^scripts/vendor-askama-testing\.py$|^mise\.toml$|^\.github/' || grammar=false
             # The extension's Rust code, built as Zed builds it.
             touches '^editors/zed/|^\.github/' || extension=false
-            # The vendored generator must stay upstream's release plus our
-            # patch, and its version follows the parser pin in Cargo.toml.
-            touches '^vendor/|^scripts/vendor-askama\.py$|^Cargo\.toml$|^\.github/' || vendor=false
             touches '^\.github/(workflows|actions)/' || workflows=false
-            # editors/claude-code and .claude-plugin are manifests with no
-            # build; `versions`, which runs on every change, holds the plugin's
-            # version to the others.
             # A new advisory can land on any day against an unchanged
             # lockfile, so main audits every push; a pull request only when it
             # changes what is resolved or how the audit reads it.
@@ -176,7 +167,6 @@ jobs:
             echo "rust=$rust"
             echo "grammar=$grammar"
             echo "extension=$extension"
-            echo "vendor=$vendor"
             echo "changelog=$changelog"
             echo "workflows=$workflows"
             echo "deps=$deps"
@@ -207,8 +197,6 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - name: Check formatting
-        # The workspace's own crates; `--all` would also format the vendored
-        # askama_derive, which must stay as upstream and its patch left it.
         run: cargo fmt -- --check
       - name: Clippy
         if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
@@ -318,21 +306,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: python3 scripts/versions.py
 
-  # vendor/askama_derive must be askama_derive at the version Cargo.toml pins
-  # askama_parser to, with vendor/askama_derive-tooling.patch applied and
-  # nothing else: an edit made there by hand would be lost at the next
-  # re-vendoring, and a patch that stops applying to a new release must fail
-  # here rather than ship half applied.
-  vendor:
-    name: Vendored generator
-    runs-on: ubuntu-24.04
-    needs: changes
-    if: needs.changes.outputs.vendor == 'true'
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: python3 scripts/vendor-askama.py --check
-
   # CHANGELOG.md is generated from changelog.d/ (scripts/changelog.py). A pull
   # request adds fragments without regenerating it, so only its fragments and
   # the released versions are checked; one that writes CHANGELOG.md, as a
@@ -382,132 +355,6 @@ jobs:
       - run: cargo install cargo-audit --locked --version 0.23.0
       - run: cargo audit
 
-  # A release cancels this repository's pull request runs, which are re-run
-  # from their page or by the next push, and main's non-release runs on
-  # commits before it, which the release supersedes, so the release's builds
-  # find runners free. Runs on later commits carry changes the release does
-  # not, and a push that changes Cargo.toml may itself release (the
-  # concurrency rule above), so both are left alone. Best effort: a run it
-  # cannot list, compare or cancel only waits longer for a runner. A job of its
-  # own, so only it holds a token that can cancel runs.
-  make-room:
-    name: Make room for the release
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    needs: changes
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.changes.outputs.release == 'true'
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          SELF: ${{ github.run_id }}
-        run: |
-          for status in requested queued pending waiting in_progress; do
-            gh run list --repo "$GITHUB_REPOSITORY" --workflow ci-cd.yml --status "$status" --limit 100 \
-              --json databaseId,event,headBranch,headSha,displayTitle \
-              --jq '.[] | select(.event == "pull_request" or (.event == "push" and .headBranch == "main" and (.displayTitle | startswith("release: ") | not))) | "\(.databaseId) \(.event) \(.headSha)"' || true
-          done | sort -u | while read -r id event sha; do
-            [ "$id" = "$SELF" ] && continue
-            if [ "$event" = push ]; then
-              status=$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...$GITHUB_SHA" --jq .status || true)
-              [ "$status" = ahead ] || continue
-              files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.files[].filename' || echo Cargo.toml)
-              [ "$(grep -cx Cargo.toml <<< "$files")" -eq 0 ] || continue
-            fi
-            echo "cancelling run $id"
-            gh run cancel "$id" --repo "$GITHUB_REPOSITORY" || true
-          done
-
-  # askama-analyzer for every platform the extension downloads it on, each on
-  # a native runner (both Apple targets on Apple silicon, where x86_64 is a
-  # cross-compile Xcode supports). Linux builds are static musl binaries, so
-  # one archive runs on any distribution. Archive names are the contract with
-  # the extension (editors/zed/src/lib.rs, `server_asset`): the tarballs hold
-  # `askama-analyzer` at their root, the zips `askama-analyzer.exe`.
-  #
-  # Check covers the code on Linux, so only a release, a release pull request
-  # (which builds unsigned, so a broken platform fails before the version
-  # merges rather than half way through publishing) and the schedule (these
-  # runners' only cache, which would otherwise always have expired by the next
-  # release) take these runners. A release signs and notarises the macOS
-  # binaries, so they run from a browser download without clearing
-  # quarantine; the notarise action fails when its secrets are missing rather
-  # than letting an unsigned binary ship. Started by `changes` rather than
-  # after `Checks`: these are the longest jobs, and publish nothing.
-  build:
-    name: Build (${{ matrix.target }})
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
-    needs: [changes, make-room]
-    if: ${{ !cancelled() && needs.changes.result == 'success' && (needs.changes.outputs.release == 'true' || github.event_name == 'schedule') }}
-    strategy:
-      # A transient failure on one platform should not cancel the others.
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            runner: ubuntu-24.04
-          - target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm
-          - target: aarch64-apple-darwin
-            runner: macos-latest
-          - target: x86_64-apple-darwin
-            runner: macos-latest
-          - target: x86_64-pc-windows-msvc
-            runner: windows-latest
-          - target: aarch64-pc-windows-msvc
-            runner: windows-11-arm
-    env:
-      TARGET: ${{ matrix.target }}
-      SHIP: ${{ github.event_name != 'pull_request' && needs.changes.outputs.release == 'true' }}
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc # v1
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          shared-key: build-${{ matrix.target }}
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-on-failure: true
-      - name: Install musl tools
-        if: contains(matrix.target, 'linux-musl')
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends musl-tools
-      - run: cargo build --release --locked -p askama-analyzer --target "$TARGET"
-      - name: Sign and notarise
-        if: env.SHIP == 'true' && contains(matrix.target, 'apple-darwin')
-        uses: radiosilence/blit-workflows/macos-notarise@c8a650dfa5a0fbe012c61eab28f615c1983aee18
-        with:
-          binaries: |
-            target/${{ matrix.target }}/release/askama-analyzer
-          certificate-p12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-          certificate-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          api-key-p8: ${{ secrets.APPLE_API_KEY_P8 }}
-          api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
-          api-issuer-id: ${{ secrets.APPLE_API_ISSUER_ID }}
-      # Archived, because an artifact does not keep the executable bit; the
-      # archive is the release's download as it stands.
-      - name: Archive
-        if: env.SHIP == 'true'
-        run: |
-          case "$TARGET" in
-            *-windows-*) pwsh -NoProfile -Command "Compress-Archive -Path target/$TARGET/release/askama-analyzer.exe -DestinationPath askama-analyzer-$TARGET.zip" ;;
-            *) tar -czvf "askama-analyzer-$TARGET.tar.gz" -C "target/$TARGET/release" askama-analyzer ;;
-          esac
-      # Kept long enough for a late re-run of a failed publish to find them.
-      - if: env.SHIP == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: askama-analyzer-${{ matrix.target }}
-          path: askama-analyzer-${{ matrix.target }}.*
-          if-no-files-found: error
-          retention-days: 90
 
   # The one status the ruleset requires. Skipped jobs are domains the change
   # does not touch and pass; anything failed or cancelled fails it.
@@ -515,7 +362,7 @@ jobs:
     name: Checks
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    needs: [changes, check, grammar, extension, versions, vendor, changelog, actionlint, audit, make-room, build]
+    needs: [changes, check, grammar, extension, versions, changelog, actionlint, audit]
     if: always()
     steps:
       - env:
@@ -534,24 +381,21 @@ jobs:
   # job here states the results it depends on rather than relying on the
   # default, which would skip it whenever any job upstream was skipped.
 
-  # The GitHub release, which is what the extension downloads from: every
-  # archive, SHA256SUMS over them, and a build provenance attestation for each
-  # (`gh attestation verify <archive> --repo radiosilence/zed-askama`). The
-  # action creates the tag through the API, on the commit that was built:
-  # GitHub refuses a git push of it from the workflow token for any commit that
-  # changes a workflow. A re-run finds the release and tag and fills in what is
-  # missing; a missing token, archive or changelog section fails rather than
-  # releasing something else.
+  # The GitHub release, the changelog section as its notes: the record of
+  # what has shipped, and what the registry bump points at. The action creates
+  # the tag through the API, on the commit that was checked: GitHub refuses a
+  # git push of it from the workflow token for any commit that changes a
+  # workflow. A re-run finds the release and tag and fills in what is missing;
+  # a missing token or changelog section fails rather than releasing something
+  # else.
   publish-release:
     name: GitHub release
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    needs: [changes, checks, build]
-    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.checks.result == 'success' && needs.build.result == 'success' && needs.changes.outputs.release == 'true' }}
+    needs: [changes, checks]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.changes.result == 'success' && needs.checks.result == 'success' && needs.changes.outputs.release == 'true' }}
     permissions:
       contents: write
-      id-token: write
-      attestations: write
     env:
       VERSION: ${{ needs.changes.outputs.version }}
     steps:
@@ -564,25 +408,6 @@ jobs:
             exit 1
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: askama-analyzer-*
-          path: artifacts
-          merge-multiple: true
-      - name: Checksums
-        working-directory: artifacts
-        run: |
-          count=$(find . -maxdepth 1 \( -name 'askama-analyzer-*.tar.gz' -o -name 'askama-analyzer-*.zip' \) | wc -l)
-          if [ "$count" -ne 6 ]; then
-            echo "::error::expected 6 archives, found $count"
-            ls -l
-            exit 1
-          fi
-          sha256sum askama-analyzer-* > SHA256SUMS
-          cat SHA256SUMS
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: artifacts/askama-analyzer-*
       - name: Release notes
         run: |
           awk -v h="## $VERSION" '$0==h{f=1;next} f&&/^## /{exit} f' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
@@ -597,10 +422,6 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: v${{ env.VERSION }}
           body_path: ${{ runner.temp }}/notes.md
-          fail_on_unmatched_files: true
-          files: |
-            artifacts/askama-analyzer-*
-            artifacts/SHA256SUMS
 
   # The version bump on zed-industries/extensions, opened as a draft from a
   # fork in the user's account (scripts/registry-pr.sh). It stays a draft until

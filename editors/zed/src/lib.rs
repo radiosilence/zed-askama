@@ -24,7 +24,7 @@ use zed_extension_api::{
 
 /// The server's name in `extension.toml` and in the user's `lsp` settings.
 const SERVER: &str = "askama-analyzer";
-const SERVER_REPOSITORY: &str = "radiosilence/zed-askama";
+const SERVER_REPOSITORY: &str = "radiosilence/askama-analyzer";
 /// rust-analyzer's name in the user's `lsp` settings, which Zed's Rust support
 /// reads too, so both instances run the same binary with the same options.
 const RUST_ANALYZER: &str = "rust-analyzer";
@@ -40,7 +40,7 @@ struct Asset {
     executable: &'static str,
 }
 
-/// The `askama-analyzer` archive the release pipeline builds for a platform.
+/// The `askama-analyzer` archive radiosilence/askama-analyzer releases for a platform.
 fn server_asset(os: Os, architecture: Architecture) -> zed::Result<Asset> {
     let target = match (os, architecture) {
         (Os::Mac, Architecture::Aarch64) => "aarch64-apple-darwin",

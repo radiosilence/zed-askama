@@ -7,7 +7,7 @@ pre-commit:
   commands:
     fmt:
       glob: "*.rs"
-      # The vendored askama_derive is upstream's code plus its patch, not ours to format.
+      # askama's vendored test suite is upstream's code, not ours to format.
       exclude:
         - "vendor/**"
       run: for f in {staged_files}; do rustfmt --edition 2024 < "$f" > "$f.fmt" && mv "$f.fmt" "$f" || { rm -f "$f.fmt"; exit 1; }; done
