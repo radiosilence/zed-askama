@@ -494,6 +494,7 @@ async fn refresh(
             warn(client, message);
         }
         workspace.sync();
+        workspace.pull_stale().await;
     }
     publish(client, workspaces, docs, encoding, published);
 }

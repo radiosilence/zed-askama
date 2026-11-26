@@ -49,6 +49,9 @@ pub struct Workspace {
     encoding: Encoding,
     rust: Rust,
     sent: BTreeMap<PathBuf, Sent>,
+    /// Overlays whose diagnostics rust-analyzer has not been asked for since they changed.
+    /// rust-analyzer computes them only when asked.
+    stale: BTreeSet<PathBuf>,
 }
 
 impl Workspace {
@@ -58,6 +61,7 @@ impl Workspace {
             encoding,
             rust: Rust::Idle,
             sent: BTreeMap::new(),
+            stale: BTreeSet::new(),
         }
     }
 
@@ -148,6 +152,7 @@ impl Workspace {
             match session.sync(path, overlay.text()) {
                 Ok(version) => {
                     self.sent.insert(path.to_owned(), Sent { overlay, version });
+                    self.stale.insert(path.to_owned());
                 }
                 Err(err) => tracing::warn!(path = %path.display(), %err, "sending an overlay"),
             }
@@ -165,6 +170,22 @@ impl Workspace {
                 let _ = session.sync(&path, &text);
             }
             self.sent.remove(&path);
+        }
+    }
+
+    /// Asks rust-analyzer for the diagnostics of every overlay that changed since it was last
+    /// asked, once it has loaded the workspace; before that, types are unknown and answers
+    /// would miss errors.
+    pub async fn pull_stale(&mut self) {
+        let Rust::Running(session) = &mut self.rust else {
+            return;
+        };
+        if !session.is_ready() {
+            return;
+        }
+        for path in std::mem::take(&mut self.stale) {
+            let count = session.pull(&path).await.map(|items| items.len());
+            tracing::debug!(path = %path.display(), ?count, "pulled rust-analyzer's diagnostics");
         }
     }
 
@@ -196,7 +217,12 @@ impl Workspace {
             let lines = Lines::new(sent.overlay.text(), self.encoding);
             for diagnostic in diagnostics {
                 tracing::debug!(path = %path.display(), message = %diagnostic.message, range = ?diagnostic.range, severity = ?diagnostic.severity, "rust-analyzer diagnostic");
-                if diagnostic.severity != Some(DiagnosticSeverity::ERROR) {
+                // An error about `!` or `{unknown}` follows from an earlier error that left a
+                // type unknown, which is reported on its own.
+                if diagnostic.severity != Some(DiagnosticSeverity::ERROR)
+                    || diagnostic.message.contains("`!")
+                    || diagnostic.message.contains("{unknown}")
+                {
                     continue;
                 }
                 let Some(start) = lines.offset(diagnostic.range.start) else {

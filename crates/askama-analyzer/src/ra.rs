@@ -22,18 +22,20 @@ use lsp_types::notification::{
     LogMessage, Notification, Progress, PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
-    CodeLensRefresh, InlayHintRefreshRequest, RegisterCapability, SemanticTokensRefresh,
-    ShowMessageRequest, UnregisterCapability, WorkDoneProgressCreate, WorkspaceConfiguration,
-    WorkspaceDiagnosticRefresh,
+    CodeLensRefresh, DocumentDiagnosticRequest, InlayHintRefreshRequest, RegisterCapability,
+    SemanticTokensRefresh, ShowMessageRequest, UnregisterCapability, WorkDoneProgressCreate,
+    WorkspaceConfiguration, WorkspaceDiagnosticRefresh,
 };
 use lsp_types::{
     ClientCapabilities, CompletionClientCapabilities, CompletionItemCapability, Diagnostic,
-    DidChangeTextDocumentParams, DidOpenTextDocumentParams, GeneralClientCapabilities,
+    DidChangeTextDocumentParams, DidOpenTextDocumentParams, DocumentDiagnosticParams,
+    DocumentDiagnosticReport, DocumentDiagnosticReportResult, GeneralClientCapabilities,
     GotoCapability, HoverClientCapabilities, InitializeParams, InitializedParams, MarkupKind,
     PublishDiagnosticsClientCapabilities, RenameClientCapabilities,
     SignatureHelpClientCapabilities, TextDocumentClientCapabilities,
-    TextDocumentContentChangeEvent, TextDocumentItem, Url, VersionedTextDocumentIdentifier,
-    WindowClientCapabilities, WorkspaceClientCapabilities, WorkspaceFolder,
+    TextDocumentContentChangeEvent, TextDocumentIdentifier, TextDocumentItem, Url,
+    VersionedTextDocumentIdentifier, WindowClientCapabilities, WorkspaceClientCapabilities,
+    WorkspaceFolder,
 };
 use parking_lot::Mutex;
 use serde::Deserialize;
@@ -318,6 +320,40 @@ impl Session {
     pub fn diagnostics(&self, path: &Path) -> Option<(Option<i32>, Vec<Diagnostic>)> {
         let uri = Url::from_file_path(path).ok()?;
         self.heard.diagnostics.lock().get(&uri).cloned()
+    }
+
+    /// Whether rust-analyzer has loaded the workspace.
+    pub fn is_ready(&self) -> bool {
+        *self.quiescent.borrow()
+    }
+
+    /// Asks for a document's diagnostics now, rather than waiting for them to be pushed, and
+    /// keeps them as the latest for the document's current version.
+    pub async fn pull(&mut self, path: &Path) -> Option<Vec<Diagnostic>> {
+        let uri = Url::from_file_path(path).ok()?;
+        let version = *self.open.get(&uri)?;
+        let result = self
+            .server
+            .request::<DocumentDiagnosticRequest>(DocumentDiagnosticParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                identifier: None,
+                previous_result_id: None,
+                work_done_progress_params: Default::default(),
+                partial_result_params: Default::default(),
+            })
+            .await
+            .map_err(|err| tracing::debug!(%err, "pulling diagnostics"))
+            .ok()?;
+        let DocumentDiagnosticReportResult::Report(DocumentDiagnosticReport::Full(report)) = result
+        else {
+            return None;
+        };
+        let items = report.full_document_diagnostic_report.items;
+        self.heard
+            .diagnostics
+            .lock()
+            .insert(uri, (Some(version), items.clone()));
+        Some(items)
     }
 
     /// What rust-analyzer last said was wrong with loading the workspace, if anything. While

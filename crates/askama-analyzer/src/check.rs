@@ -88,6 +88,7 @@ pub async fn analyse(
         bail!("rust-analyzer did not finish loading within {LOAD:?}");
     }
     while tokio::time::timeout(QUIET, wake.notified()).await.is_ok() {}
+    workspace.pull_stale().await;
     if let Some(trouble) = workspace.session().and_then(|session| session.trouble()) {
         eprintln!("rust-analyzer could not load everything: {trouble}");
     }
