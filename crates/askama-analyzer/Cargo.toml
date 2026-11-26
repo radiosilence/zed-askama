@@ -16,7 +16,7 @@ cargo_metadata = "0.23"
 clap = { version = "4", features = ["derive"] }
 futures = { version = "0.3", default-features = false, features = ["std"] }
 line-index = "0.1.2"
-parking_lot = "0.12"
+parking_lot = "0.13"
 # The version async-lsp is built on, so one set of protocol types runs through both sides.
 lsp-types = "0.95"
 proc-macro2.workspace = true
