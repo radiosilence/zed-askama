@@ -1,0 +1,119 @@
+{
+  "if": {
+    "prefix": "if",
+    "body": [
+      "{% if ${1:condition} %}",
+      "\t$0",
+      "{% endif %}"
+    ],
+    "description": "An if block"
+  },
+  "if let": {
+    "prefix": "iflet",
+    "body": [
+      "{% if let ${1:Some(value)} = ${2:option} %}",
+      "\t$0",
+      "{% endif %}"
+    ],
+    "description": "An if let block"
+  },
+  "for": {
+    "prefix": "for",
+    "body": [
+      "{% for ${1:item} in ${2:items} %}",
+      "\t$0",
+      "{% endfor %}"
+    ],
+    "description": "A for loop"
+  },
+  "match": {
+    "prefix": "match",
+    "body": [
+      "{% match ${1:value} %}",
+      "\t{% when ${2:pattern} %}",
+      "\t\t$0",
+      "{% endmatch %}"
+    ],
+    "description": "A match block with one arm"
+  },
+  "block": {
+    "prefix": "block",
+    "body": [
+      "{% block ${1:name} %}",
+      "\t$0",
+      "{% endblock %}"
+    ],
+    "description": "A template block"
+  },
+  "macro": {
+    "prefix": "macro",
+    "body": [
+      "{% macro ${1:name}(${2}) %}",
+      "\t$0",
+      "{% endmacro %}"
+    ],
+    "description": "A macro definition"
+  },
+  "call": {
+    "prefix": "call",
+    "body": [
+      "{% call ${1:name}(${2}) %}",
+      "\t$0",
+      "{% endcall %}"
+    ],
+    "description": "A macro call with a caller body"
+  },
+  "filter": {
+    "prefix": "filter",
+    "body": [
+      "{% filter ${1:name} %}",
+      "\t$0",
+      "{% endfilter %}"
+    ],
+    "description": "A filter block"
+  },
+  "let": {
+    "prefix": "let",
+    "body": [
+      "{% let ${1:name} = ${2:value} %}$0"
+    ],
+    "description": "A let binding"
+  },
+  "let block": {
+    "prefix": "letblock",
+    "body": [
+      "{% let ${1:name} %}",
+      "\t$0",
+      "{% endlet %}"
+    ],
+    "description": "A let block, binding its rendered body"
+  },
+  "raw": {
+    "prefix": "raw",
+    "body": [
+      "{% raw %}$0{% endraw %}"
+    ],
+    "description": "A raw block, output without template processing"
+  },
+  "extends": {
+    "prefix": "extends",
+    "body": [
+      "{% extends \"${1:base.html}\" %}$0"
+    ],
+    "description": "Extend a parent template"
+  },
+  "include": {
+    "prefix": "include",
+    "body": [
+      "{% include \"${1:partial.html}\" %}$0"
+    ],
+    "description": "Include another template"
+  },
+  "import": {
+    "prefix": "import",
+    "body": [
+      "{% import \"${1:macros.html}\" as ${2:macros} %}$0"
+    ],
+    "description": "Import another template's macros"
+  }
+}
