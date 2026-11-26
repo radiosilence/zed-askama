@@ -18,6 +18,20 @@ snippets = [
     "snippets/askama text.json",
 ]
 
+# askama-analyzer answers in templates Zed opened as HTML, and in Rust files
+# for inline `source = "..."` templates and references from Rust; it idles in a
+# workspace with no askama dependency.
+[language_servers.askama-analyzer]
+name = "askama-analyzer"
+languages = ["Askama HTML", "Askama Markdown", "Askama Text", "HTML", "Rust"]
+
+[language_servers.askama-analyzer.language_ids]
+"Askama HTML" = "askama"
+"Askama Markdown" = "askama"
+"Askama Text" = "askama"
+"HTML" = "html"
+"Rust" = "rust"
+
 # `rev` must name a pushed commit whose grammar/ matches grammar/ at HEAD.
 [grammars.askama]
 repository = "https://github.com/radiosilence/zed-askama"
