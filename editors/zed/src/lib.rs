@@ -50,7 +50,9 @@ fn server_asset(os: Os, architecture: Architecture) -> zed::Result<Asset> {
         (Os::Windows, Architecture::Aarch64) => "aarch64-pc-windows-msvc",
         (Os::Windows, Architecture::X8664) => "x86_64-pc-windows-msvc",
         (os, architecture) => {
-            return Err(format!("{SERVER} has no build for {os:?} on {architecture:?}"));
+            return Err(format!(
+                "{SERVER} has no build for {os:?} on {architecture:?}"
+            ));
         }
     };
     Ok(match os {
@@ -77,7 +79,9 @@ fn rust_analyzer_asset(os: Os, architecture: Architecture) -> zed::Result<Asset>
         (Os::Windows, Architecture::Aarch64) => "aarch64-pc-windows-msvc",
         (Os::Windows, Architecture::X8664) => "x86_64-pc-windows-msvc",
         (os, architecture) => {
-            return Err(format!("rust-analyzer has no build for {os:?} on {architecture:?}"));
+            return Err(format!(
+                "rust-analyzer has no build for {os:?} on {architecture:?}"
+            ));
         }
     };
     Ok(match os {
@@ -131,7 +135,10 @@ fn newest_version<'a>(prefix: &str, names: impl IntoIterator<Item = &'a str>) ->
 /// The server's environment: the worktree's shell environment, so it finds
 /// `cargo` and `rust-analyzer` as the user's shell would, with the variables
 /// the user configured taking precedence.
-fn merge_env(shell: Vec<(String, String)>, configured: Option<HashMap<String, String>>) -> Vec<(String, String)> {
+fn merge_env(
+    shell: Vec<(String, String)>,
+    configured: Option<HashMap<String, String>>,
+) -> Vec<(String, String)> {
     let mut env: Vec<(String, String)> = shell;
     for (name, value) in configured.into_iter().flatten() {
         match env.iter_mut().find(|(existing, _)| *existing == name) {
@@ -151,7 +158,10 @@ fn rust_analyzer_options(path: Option<String>, settings: LspSettings) -> Value {
     if let Some(path) = path {
         options.insert("path".into(), Value::String(path));
     }
-    let args = binary.as_ref().and_then(|binary| binary.arguments.clone()).unwrap_or_default();
+    let args = binary
+        .as_ref()
+        .and_then(|binary| binary.arguments.clone())
+        .unwrap_or_default();
     options.insert("args".into(), json!(args));
     let env = binary.and_then(|binary| binary.env).unwrap_or_default();
     options.insert("env".into(), json!(env));
@@ -196,10 +206,9 @@ impl Download {
             .flatten()
             .filter_map(|entry| entry.file_name().into_string().ok())
             .collect();
-        let complete = names
-            .iter()
-            .map(String::as_str)
-            .filter(|name| fs::metadata(format!("{name}/{}", self.asset.executable)).is_ok_and(|m| m.is_file()));
+        let complete = names.iter().map(String::as_str).filter(|name| {
+            fs::metadata(format!("{name}/{}", self.asset.executable)).is_ok_and(|m| m.is_file())
+        });
         let version = newest_version(self.prefix, complete)?;
         Some(self.executable(version))
     }
@@ -208,15 +217,29 @@ impl Download {
     /// When the release cannot be checked, or has no build for this platform,
     /// the newest copy already downloaded.
     fn fetch(&self, server: &LanguageServerId) -> zed::Result<String> {
-        zed::set_language_server_installation_status(server, &LanguageServerInstallationStatus::CheckingForUpdate);
-        let options = GithubReleaseOptions { require_assets: true, pre_release: false };
+        zed::set_language_server_installation_status(
+            server,
+            &LanguageServerInstallationStatus::CheckingForUpdate,
+        );
+        let options = GithubReleaseOptions {
+            require_assets: true,
+            pre_release: false,
+        };
         let release = zed::latest_github_release(self.repository, options).and_then(|release| {
             let asset = release
                 .assets
                 .iter()
                 .find(|asset| asset.name == self.asset.name)
-                .ok_or_else(|| format!("{} {} has no asset {}", self.repository, release.version, self.asset.name))?;
-            Ok((release.version.trim_start_matches('v').to_owned(), asset.download_url.clone()))
+                .ok_or_else(|| {
+                    format!(
+                        "{} {} has no asset {}",
+                        self.repository, release.version, self.asset.name
+                    )
+                })?;
+            Ok((
+                release.version.trim_start_matches('v').to_owned(),
+                asset.download_url.clone(),
+            ))
         });
         let (version, url) = match release {
             Ok(found) => found,
@@ -232,7 +255,10 @@ impl Download {
             return Ok(executable);
         }
 
-        zed::set_language_server_installation_status(server, &LanguageServerInstallationStatus::Downloading);
+        zed::set_language_server_installation_status(
+            server,
+            &LanguageServerInstallationStatus::Downloading,
+        );
         let directory = format!("{}-{version}", self.prefix);
         fs::create_dir_all(&directory).map_err(|error| format!("creating {directory}: {error}"))?;
         let destination = match self.asset.file_type {
@@ -263,7 +289,8 @@ impl Download {
 /// The absolute path of a file in the extension's work directory, which is the
 /// process's current directory.
 fn absolute(relative: &str) -> zed::Result<String> {
-    let directory = std::env::current_dir().map_err(|error| format!("reading the work directory: {error}"))?;
+    let directory =
+        std::env::current_dir().map_err(|error| format!("reading the work directory: {error}"))?;
     Ok(directory.join(relative).to_string_lossy().into_owned())
 }
 
@@ -277,7 +304,11 @@ struct AskamaExtension {
 
 impl AskamaExtension {
     fn downloaded_server(&mut self, server: &LanguageServerId) -> zed::Result<String> {
-        if let Some(path) = self.server.as_ref().filter(|path| fs::metadata(path).is_ok()) {
+        if let Some(path) = self
+            .server
+            .as_ref()
+            .filter(|path| fs::metadata(path).is_ok())
+        {
             return Ok(path.clone());
         }
         let (os, architecture) = zed::current_platform();
@@ -305,12 +336,20 @@ impl AskamaExtension {
         if let Some(path) = worktree.which(RUST_ANALYZER) {
             return Some(path);
         }
-        if let Some(path) = self.rust_analyzer.as_ref().filter(|path| fs::metadata(path).is_ok()) {
+        if let Some(path) = self
+            .rust_analyzer
+            .as_ref()
+            .filter(|path| fs::metadata(path).is_ok())
+        {
             return Some(path.clone());
         }
         let (os, architecture) = zed::current_platform();
         let found = rust_analyzer_asset(os, architecture).and_then(|asset| {
-            let download = Download { prefix: RUST_ANALYZER, repository: RUST_ANALYZER_REPOSITORY, asset };
+            let download = Download {
+                prefix: RUST_ANALYZER,
+                repository: RUST_ANALYZER_REPOSITORY,
+                asset,
+            };
             absolute(&download.fetch(server)?)
         });
         match found {
@@ -336,8 +375,14 @@ impl zed::Extension for AskamaExtension {
         Self::default()
     }
 
-    fn language_server_command(&mut self, server: &LanguageServerId, worktree: &Worktree) -> zed::Result<Command> {
-        let binary = LspSettings::for_worktree(SERVER, worktree).ok().and_then(|settings| settings.binary);
+    fn language_server_command(
+        &mut self,
+        server: &LanguageServerId,
+        worktree: &Worktree,
+    ) -> zed::Result<Command> {
+        let binary = LspSettings::for_worktree(SERVER, worktree)
+            .ok()
+            .and_then(|settings| settings.binary);
         let (path, args, env) = match binary {
             Some(binary) => (binary.path, binary.arguments, binary.env),
             None => (None, None, None),
@@ -355,7 +400,10 @@ impl zed::Extension for AskamaExtension {
                 }
             },
         };
-        zed::set_language_server_installation_status(server, &LanguageServerInstallationStatus::None);
+        zed::set_language_server_installation_status(
+            server,
+            &LanguageServerInstallationStatus::None,
+        );
         Ok(Command {
             command,
             args: args.unwrap_or_default(),
@@ -373,7 +421,10 @@ impl zed::Extension for AskamaExtension {
             .and_then(|settings| settings.initialization_options);
         let rust_analyzer = LspSettings::for_worktree(RUST_ANALYZER, worktree).unwrap_or_default();
         let path = self.rust_analyzer_path(server, worktree, rust_analyzer.binary.as_ref());
-        Ok(Some(initialization_options(configured, rust_analyzer_options(path, rust_analyzer))))
+        Ok(Some(initialization_options(
+            configured,
+            rust_analyzer_options(path, rust_analyzer),
+        )))
     }
 
     fn language_server_workspace_configuration(
@@ -396,30 +447,66 @@ mod tests {
     #[test]
     fn every_supported_platform_maps_to_the_archive_the_release_builds() {
         let cases = [
-            (Os::Mac, Architecture::Aarch64, "askama-analyzer-aarch64-apple-darwin.tar.gz"),
-            (Os::Mac, Architecture::X8664, "askama-analyzer-x86_64-apple-darwin.tar.gz"),
-            (Os::Linux, Architecture::Aarch64, "askama-analyzer-aarch64-unknown-linux-musl.tar.gz"),
-            (Os::Linux, Architecture::X8664, "askama-analyzer-x86_64-unknown-linux-musl.tar.gz"),
-            (Os::Windows, Architecture::Aarch64, "askama-analyzer-aarch64-pc-windows-msvc.zip"),
-            (Os::Windows, Architecture::X8664, "askama-analyzer-x86_64-pc-windows-msvc.zip"),
+            (
+                Os::Mac,
+                Architecture::Aarch64,
+                "askama-analyzer-aarch64-apple-darwin.tar.gz",
+            ),
+            (
+                Os::Mac,
+                Architecture::X8664,
+                "askama-analyzer-x86_64-apple-darwin.tar.gz",
+            ),
+            (
+                Os::Linux,
+                Architecture::Aarch64,
+                "askama-analyzer-aarch64-unknown-linux-musl.tar.gz",
+            ),
+            (
+                Os::Linux,
+                Architecture::X8664,
+                "askama-analyzer-x86_64-unknown-linux-musl.tar.gz",
+            ),
+            (
+                Os::Windows,
+                Architecture::Aarch64,
+                "askama-analyzer-aarch64-pc-windows-msvc.zip",
+            ),
+            (
+                Os::Windows,
+                Architecture::X8664,
+                "askama-analyzer-x86_64-pc-windows-msvc.zip",
+            ),
         ];
         for (os, architecture, name) in cases {
             let asset = server_asset(os, architecture).expect("the platform is supported");
-            assert_eq!(asset.name, name, "wrong archive for {os:?} on {architecture:?}");
+            assert_eq!(
+                asset.name, name,
+                "wrong archive for {os:?} on {architecture:?}"
+            );
         }
     }
 
     #[test]
     fn windows_archives_are_zips_holding_an_exe_and_the_rest_tarballs() {
         let windows = server_asset(Os::Windows, Architecture::X8664).expect("supported");
-        assert_eq!((windows.file_type, windows.executable), (DownloadedFileType::Zip, "askama-analyzer.exe"));
+        assert_eq!(
+            (windows.file_type, windows.executable),
+            (DownloadedFileType::Zip, "askama-analyzer.exe")
+        );
         let linux = server_asset(Os::Linux, Architecture::X8664).expect("supported");
-        assert_eq!((linux.file_type, linux.executable), (DownloadedFileType::GzipTar, "askama-analyzer"));
+        assert_eq!(
+            (linux.file_type, linux.executable),
+            (DownloadedFileType::GzipTar, "askama-analyzer")
+        );
     }
 
     #[test]
     fn a_32_bit_platform_has_no_server_build() {
-        assert!(server_asset(Os::Linux, Architecture::X86).is_err(), "x86 should have no build");
+        assert!(
+            server_asset(Os::Linux, Architecture::X86).is_err(),
+            "x86 should have no build"
+        );
     }
 
     #[test]
@@ -432,20 +519,31 @@ mod tests {
         let windows = rust_analyzer_asset(Os::Windows, Architecture::Aarch64).expect("supported");
         assert_eq!(
             (windows.name.as_str(), windows.executable),
-            ("rust-analyzer-aarch64-pc-windows-msvc.zip", "rust-analyzer.exe")
+            (
+                "rust-analyzer-aarch64-pc-windows-msvc.zip",
+                "rust-analyzer.exe"
+            )
         );
     }
 
     #[test]
     fn versions_compare_numerically_not_as_text() {
         assert_eq!(compare_versions("0.10.0", "0.9.1"), Ordering::Greater);
-        assert_eq!(compare_versions("2026-11-23", "2026-02-01"), Ordering::Greater);
+        assert_eq!(
+            compare_versions("2026-11-23", "2026-02-01"),
+            Ordering::Greater
+        );
         assert_eq!(compare_versions("1.0.0", "1.0.0"), Ordering::Equal);
     }
 
     #[test]
     fn the_newest_cached_version_ignores_other_prefixes() {
-        let names = ["askama-analyzer-0.9.0", "askama-analyzer-0.10.0", "rust-analyzer-2026-11-23", "askama-analyzer-"];
+        let names = [
+            "askama-analyzer-0.9.0",
+            "askama-analyzer-0.10.0",
+            "rust-analyzer-2026-11-23",
+            "askama-analyzer-",
+        ];
         assert_eq!(newest_version("askama-analyzer", names), Some("0.10.0"));
         assert_eq!(newest_version("rust-analyzer", names), Some("2026-11-23"));
         assert_eq!(newest_version("askama-analyzer", ["unrelated"]), None);
@@ -453,13 +551,35 @@ mod tests {
 
     #[test]
     fn configured_variables_override_the_shell_environment() {
-        let shell = vec![("PATH".to_owned(), "/usr/bin".to_owned()), ("HOME".to_owned(), "/home/u".to_owned())];
-        let configured = HashMap::from([("PATH".to_owned(), "/opt/bin".to_owned()), ("RUST_LOG".to_owned(), "debug".to_owned())]);
+        let shell = vec![
+            ("PATH".to_owned(), "/usr/bin".to_owned()),
+            ("HOME".to_owned(), "/home/u".to_owned()),
+        ];
+        let configured = HashMap::from([
+            ("PATH".to_owned(), "/opt/bin".to_owned()),
+            ("RUST_LOG".to_owned(), "debug".to_owned()),
+        ]);
         let env = merge_env(shell, Some(configured));
-        let lookup = |name: &str| env.iter().find(|(key, _)| key == name).map(|(_, value)| value.as_str());
-        assert_eq!(lookup("PATH"), Some("/opt/bin"), "the configured PATH should win");
-        assert_eq!(lookup("HOME"), Some("/home/u"), "shell variables should be kept");
-        assert_eq!(lookup("RUST_LOG"), Some("debug"), "new variables should be added");
+        let lookup = |name: &str| {
+            env.iter()
+                .find(|(key, _)| key == name)
+                .map(|(_, value)| value.as_str())
+        };
+        assert_eq!(
+            lookup("PATH"),
+            Some("/opt/bin"),
+            "the configured PATH should win"
+        );
+        assert_eq!(
+            lookup("HOME"),
+            Some("/home/u"),
+            "shell variables should be kept"
+        );
+        assert_eq!(
+            lookup("RUST_LOG"),
+            Some("debug"),
+            "new variables should be added"
+        );
         assert_eq!(env.len(), 3, "no variable should appear twice");
     }
 
@@ -490,20 +610,30 @@ mod tests {
     #[test]
     fn unset_rust_analyzer_options_are_omitted_and_lists_default_empty() {
         let options = rust_analyzer_options(None, LspSettings::default());
-        assert_eq!(options, json!({ "args": [], "env": {} }), "path and unset options should be absent");
+        assert_eq!(
+            options,
+            json!({ "args": [], "env": {} }),
+            "path and unset options should be absent"
+        );
     }
 
     #[test]
     fn the_users_initialization_options_keep_their_keys_and_gain_rust_analyzer() {
         let configured = json!({ "trace": true, "rustAnalyzer": "stale" });
         let options = initialization_options(Some(configured), json!({ "path": "/ra" }));
-        assert_eq!(options, json!({ "trace": true, "rustAnalyzer": { "path": "/ra" } }));
+        assert_eq!(
+            options,
+            json!({ "trace": true, "rustAnalyzer": { "path": "/ra" } })
+        );
     }
 
     #[test]
     fn initialization_options_that_are_not_an_object_are_replaced() {
         let options = initialization_options(Some(json!("odd")), json!({}));
         assert_eq!(options, json!({ "rustAnalyzer": {} }));
-        assert_eq!(initialization_options(None, json!({})), json!({ "rustAnalyzer": {} }));
+        assert_eq!(
+            initialization_options(None, json!({})),
+            json!({ "rustAnalyzer": {} })
+        );
     }
 }
