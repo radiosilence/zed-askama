@@ -1,8 +1,10 @@
 [workspace]
 members = ["crates/*", "grammar"]
 # Upstream code with our tooling patch, built as a dependency but not held to
-# this workspace's lints; scripts/vendor-askama.py owns its contents.
-exclude = ["vendor"]
+# this workspace's lints; scripts/vendor-askama.py owns its contents. The Zed
+# extension is a workspace of its own: Zed builds it for wasm32-wasip2 inside
+# editors/zed, and the registry may package that directory alone.
+exclude = ["vendor", "editors"]
 resolver = "3"
 
 [workspace.package]
