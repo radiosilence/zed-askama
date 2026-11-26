@@ -210,7 +210,7 @@ fn corpus() -> (Vec<Input>, BTreeSet<String>) {
 fn grammar_parser() -> Parser {
     let mut parser = Parser::new();
     parser
-        .set_language(&askama_analyzer_grammar::LANGUAGE.into())
+        .set_language(&tree_sitter_askama::LANGUAGE.into())
         .expect("the grammar was generated for this tree-sitter version");
     parser
 }

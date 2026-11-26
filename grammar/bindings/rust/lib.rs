@@ -3,7 +3,7 @@
 //! ```
 //! let mut parser = tree_sitter::Parser::new();
 //! parser
-//!     .set_language(&askama_analyzer_grammar::LANGUAGE.into())
+//!     .set_language(&tree_sitter_askama::LANGUAGE.into())
 //!     .expect("the grammar matches the tree-sitter version");
 //! let tree = parser.parse("{% if user.admin %}{{ user.name }}{% endif %}", None);
 //! assert!(!tree.expect("no timeout was set").root_node().has_error());

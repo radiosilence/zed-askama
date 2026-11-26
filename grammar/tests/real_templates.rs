@@ -48,7 +48,7 @@ fn every_template_in_the_given_projects_parses_without_errors() {
 
     let mut parser = Parser::new();
     parser
-        .set_language(&askama_analyzer_grammar::LANGUAGE.into())
+        .set_language(&tree_sitter_askama::LANGUAGE.into())
         .expect("the grammar was generated for this tree-sitter version");
     let failures: Vec<String> = templates
         .iter()
