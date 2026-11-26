@@ -492,7 +492,7 @@ jobs:
         if: env.SHIP == 'true'
         run: |
           case "$TARGET" in
-            *-windows-*) (cd "target/$TARGET/release" && 7z a -tzip "$GITHUB_WORKSPACE/askama-analyzer-$TARGET.zip" askama-analyzer.exe) ;;
+            *-windows-*) pwsh -NoProfile -Command "Compress-Archive -Path target/$TARGET/release/askama-analyzer.exe -DestinationPath askama-analyzer-$TARGET.zip" ;;
             *) tar -czvf "askama-analyzer-$TARGET.tar.gz" -C "target/$TARGET/release" askama-analyzer ;;
           esac
       # Kept long enough for a late re-run of a failed publish to find them.
