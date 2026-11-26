@@ -7,15 +7,19 @@
 // - comment bodies, which nest (`{# a {# b #} c #}`);
 // - `raw` bodies, which end only at `{% endraw %}` with optional whitespace
 //   control;
-// - `{%`, split into a branch start (before `else`, `elif`, `when` and any
-//   `end…` keyword) and a block start (before everything else), so a block's
-//   body ends on one token of lookahead. `{% endwhen` has a start of its own,
-//   because it is optional: after a `when` arm's body, a branch start could
-//   either close the arm or begin the next one;
+// - `{%`, as a different token for each keyword that continues or closes a
+//   block (`else`, `elif`, `when`, `endwhen`, `endif`, …) and one block start
+//   for everything else. A block's body then ends on one token of lookahead,
+//   and a closing tag the open block does not expect is rejected before its
+//   `{%` is consumed, so error recovery can close the inner block with a
+//   missing end tag and let the outer block take the closing tag;
 // - `let` and `set` at the start of a condition, which are keywords only when a
 //   pattern and `=` follow (`{% if let Some(x) = y %}`) and variables
 //   otherwise (`{% if set.is_empty() %}`), as askama decides by backtracking;
 // - Rust raw strings (`r#"…"#`, `br"…"`, `cr"…"`) inside macro token trees.
+//
+// It never emits MISSING_END_TAG, which exists for error recovery to insert
+// where a block is left open.
 //
 // The scanner keeps no state between tokens and never allocates. Its lookahead
 // is bounded: one keyword past a `{%`, and at most LET_LOOKAHEAD characters
@@ -32,17 +36,41 @@ enum TokenType {
   COMMENT_START,
   COMMENT_BODY,
   BLOCK_START,
-  BRANCH_START,
+  ELSE_START,
+  ELIF_START,
+  WHEN_START,
   ENDWHEN_START,
+  ENDIF_START,
+  ENDFOR_START,
+  ENDMATCH_START,
+  ENDBLOCK_START,
+  ENDMACRO_START,
+  ENDCALL_START,
+  ENDFILTER_START,
+  ENDLET_START,
+  ENDSET_START,
+  ENDRAW_START,
   LET_KEYWORD,
   SET_KEYWORD,
   RAW_STRING_LITERAL,
+  MISSING_END_TAG,
   ERROR_SENTINEL,
 };
 
-// The longest keyword the scanner needs to tell apart is `endfilter`; anything
-// longer is read only far enough to know whether it starts with `end`.
+// Room for the longest keyword the scanner tells apart, `endfilter`, and one
+// more character, so a longer word never matches.
 #define KEYWORD_CAPACITY 16
+
+static const struct {
+  const char *keyword;
+  enum TokenType start;
+} BRANCH_KEYWORDS[] = {
+    {"else", ELSE_START},       {"elif", ELIF_START},         {"when", WHEN_START},
+    {"endwhen", ENDWHEN_START}, {"endif", ENDIF_START},       {"endfor", ENDFOR_START},
+    {"endmatch", ENDMATCH_START}, {"endblock", ENDBLOCK_START}, {"endmacro", ENDMACRO_START},
+    {"endcall", ENDCALL_START}, {"endfilter", ENDFILTER_START}, {"endlet", ENDLET_START},
+    {"endset", ENDSET_START},   {"endraw", ENDRAW_START},
+};
 
 // A `let` pattern longer than this is read as an expression. The longest in
 // askama's tests and in koan's templates is under 100 characters.
@@ -114,27 +142,16 @@ static bool scan_tag_start(TSLexer *lexer, const bool *valid_symbols) {
     advance(lexer);
   }
 
-  bool is_branch = (length >= 3 && keyword[0] == 'e' && keyword[1] == 'n' && keyword[2] == 'd') ||
-                   equals(keyword, length, "else") || equals(keyword, length, "elif") ||
-                   equals(keyword, length, "when");
-
-  if (equals(keyword, length, "endwhen") && valid_symbols[ENDWHEN_START]) {
-    lexer->result_symbol = ENDWHEN_START;
+  for (unsigned i = 0; i < sizeof BRANCH_KEYWORDS / sizeof BRANCH_KEYWORDS[0]; i++) {
+    if (!equals(keyword, length, BRANCH_KEYWORDS[i].keyword)) continue;
+    enum TokenType start = BRANCH_KEYWORDS[i].start;
+    if (!valid_symbols[start]) return false;
+    lexer->result_symbol = start;
     return true;
   }
-  if (is_branch && valid_symbols[BRANCH_START]) {
-    lexer->result_symbol = BRANCH_START;
-    return true;
-  }
-  if (valid_symbols[BLOCK_START]) {
-    lexer->result_symbol = BLOCK_START;
-    return true;
-  }
-  if (valid_symbols[BRANCH_START]) {
-    lexer->result_symbol = BRANCH_START;
-    return true;
-  }
-  return false;
+  if (!valid_symbols[BLOCK_START]) return false;
+  lexer->result_symbol = BLOCK_START;
+  return true;
 }
 
 // Called with the lexer on the `#` of `{#`, the `{` already consumed. Emits
@@ -262,7 +279,7 @@ static bool scan_raw_content(TSLexer *lexer) {
       if (lexer->lookahead == '%') {
         advance(lexer);
         if (lexer->lookahead == '}') {
-          lexer->result_symbol = has_content ? RAW_CONTENT : BRANCH_START;
+          lexer->result_symbol = has_content ? RAW_CONTENT : ENDRAW_START;
           return true;
         }
       }
@@ -394,8 +411,7 @@ bool tree_sitter_askama_external_scanner_scan(void *payload, TSLexer *lexer,
 
   while (is_space(lexer->lookahead)) lexer->advance(lexer, true);
 
-  if (lexer->lookahead == '{' && (valid_symbols[BLOCK_START] || valid_symbols[BRANCH_START] ||
-                                  valid_symbols[ENDWHEN_START] || valid_symbols[COMMENT_START])) {
+  if (lexer->lookahead == '{') {
     advance(lexer);
     if (lexer->lookahead == '%') return scan_tag_start(lexer, valid_symbols);
     if (lexer->lookahead == '#' && valid_symbols[COMMENT_START]) return scan_comment_start(lexer);

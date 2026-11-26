@@ -5,12 +5,17 @@
  * two disagree, this grammar is wrong. Node names follow tree-sitter-rust where
  * the meaning matches, so Rust highlighting conventions carry over.
  *
- * Every `{% … %}` that opens a block, and every `else`, `when` and `end…` tag,
- * starts with a `{%` token from the external scanner. The scanner looks at the
- * keyword after `{%` and emits `_branch_start` for branch and closing tags and
- * `_block_start` for everything else. That single token of lookahead is what lets
- * a block's body end deterministically, so each block is one node whose children
- * are its tags, branches and bodies.
+ * Every `{% … %}` tag starts with a `{%` token from the external scanner, which
+ * looks at the keyword after it: each keyword that continues or closes a block
+ * (`else`, `elif`, `when`, `endif`, …) has a start token of its own, and every
+ * other tag starts with `_block_start`. That single token of lookahead is what
+ * lets a block's body end deterministically, so each block is one node whose
+ * children are its tags, branches and bodies.
+ *
+ * Every closing tag may also be `_missing_end_tag`, a token the scanner never
+ * emits. Error recovery inserts it where a block is left open, so an unclosed
+ * block shows as a MISSING closing tag rather than an ERROR over the rest of
+ * the file.
  */
 
 /// <reference types="tree-sitter-cli/dsl" />
@@ -67,11 +72,24 @@ module.exports = grammar({
     $._comment_start,
     $._comment_body,
     $._block_start,
-    $._branch_start,
+    $._else_start,
+    $._elif_start,
+    $._when_start,
     $._endwhen_start,
+    $._endif_start,
+    $._endfor_start,
+    $._endmatch_start,
+    $._endblock_start,
+    $._endmacro_start,
+    $._endcall_start,
+    $._endfilter_start,
+    $._endlet_start,
+    $._endset_start,
+    $._endraw_start,
     $._let_keyword,
     $._set_keyword,
     $.raw_string_literal,
+    $._missing_end_tag,
     $._error_sentinel,
   ],
 
@@ -116,7 +134,6 @@ module.exports = grammar({
     _expression_end: (_) => alias(token(/[-+~]?\}\}/), '}}'),
     _block_end: (_) => alias(token(/[-+~]?%\}/), '%}'),
     _open: ($) => alias($._block_start, '{%'),
-    _branch: ($) => alias($._branch_start, '{%'),
 
     comment: ($) => seq(
       alias($._comment_start, '{#'),
@@ -187,7 +204,7 @@ module.exports = grammar({
       field('open', $.if_tag),
       repeat(field('body', $._node)),
       repeat(field('alternative', choice($.else_if_clause, $.else_clause))),
-      field('close', $.endif_tag),
+      field('close', choice($.endif_tag, alias($._missing_end_tag, $.endif_tag))),
     ),
 
     if_tag: ($) => seq($._open, 'if', field('condition', $._condition), $._block_end),
@@ -198,8 +215,10 @@ module.exports = grammar({
     ),
 
     else_if_tag: ($) => seq(
-      $._branch,
-      choice(seq('else', 'if'), 'elif'),
+      choice(
+        seq(alias($._else_start, '{%'), 'else', 'if'),
+        seq(alias($._elif_start, '{%'), 'elif'),
+      ),
       field('condition', $._condition),
       $._block_end,
     ),
@@ -209,9 +228,9 @@ module.exports = grammar({
       repeat(field('body', $._node)),
     ),
 
-    else_tag: ($) => seq($._branch, 'else', $._block_end),
+    else_tag: ($) => seq(alias($._else_start, '{%'), 'else', $._block_end),
 
-    endif_tag: ($) => seq($._branch, 'endif', $._block_end),
+    endif_tag: ($) => seq(alias($._endif_start, '{%'), 'endif', $._block_end),
 
     _condition: ($) => choice($._expression, $.let_condition, $.let_chain),
 
@@ -234,7 +253,7 @@ module.exports = grammar({
       field('open', $.for_tag),
       repeat(field('body', $._node)),
       optional(field('alternative', $.else_clause)),
-      field('close', $.endfor_tag),
+      field('close', choice($.endfor_tag, alias($._missing_end_tag, $.endfor_tag))),
     ),
 
     for_tag: ($) => seq(
@@ -247,7 +266,7 @@ module.exports = grammar({
       $._block_end,
     ),
 
-    endfor_tag: ($) => seq($._branch, 'endfor', $._block_end),
+    endfor_tag: ($) => seq(alias($._endfor_start, '{%'), 'endfor', $._block_end),
 
     // Only whitespace and comments may stand between `{% match %}` and the
     // first arm, or after an `{% endwhen %}`.
@@ -258,7 +277,7 @@ module.exports = grammar({
         seq(repeat1(field('arm', $.when_clause)), optional(field('arm', $.else_clause))),
         field('arm', $.else_clause),
       ),
-      field('close', $.endmatch_tag),
+      field('close', choice($.endmatch_tag, alias($._missing_end_tag, $.endmatch_tag))),
     ),
 
     match_tag: ($) => seq($._open, 'match', field('value', $._expression), $._block_end),
@@ -270,7 +289,7 @@ module.exports = grammar({
     ),
 
     when_tag: ($) => seq(
-      $._branch,
+      alias($._when_start, '{%'),
       'when',
       field('pattern', $._pattern),
       repeat(seq('|', field('pattern', $._pattern))),
@@ -279,24 +298,24 @@ module.exports = grammar({
 
     endwhen_tag: ($) => seq(alias($._endwhen_start, '{%'), 'endwhen', $._block_end),
 
-    endmatch_tag: ($) => seq($._branch, 'endmatch', $._block_end),
+    endmatch_tag: ($) => seq(alias($._endmatch_start, '{%'), 'endmatch', $._block_end),
 
     block_definition: ($) => seq(
       field('open', $.block_tag),
       repeat(field('body', $._node)),
-      field('close', $.endblock_tag),
+      field('close', choice($.endblock_tag, alias($._missing_end_tag, $.endblock_tag))),
     ),
 
     block_tag: ($) => seq($._open, 'block', field('name', $.identifier), $._block_end),
 
     endblock_tag: ($) => seq(
-      $._branch, 'endblock', optional(field('name', $.identifier)), $._block_end,
+      alias($._endblock_start, '{%'), 'endblock', optional(field('name', $.identifier)), $._block_end,
     ),
 
     macro_definition: ($) => seq(
       field('open', $.macro_tag),
       repeat(field('body', $._node)),
-      field('close', $.endmacro_tag),
+      field('close', choice($.endmacro_tag, alias($._missing_end_tag, $.endmacro_tag))),
     ),
 
     macro_tag: ($) => seq(
@@ -316,13 +335,13 @@ module.exports = grammar({
     ),
 
     endmacro_tag: ($) => seq(
-      $._branch, 'endmacro', optional(field('name', $.identifier)), $._block_end,
+      alias($._endmacro_start, '{%'), 'endmacro', optional(field('name', $.identifier)), $._block_end,
     ),
 
     call_block: ($) => seq(
       field('open', $.call_tag),
       repeat(field('body', $._node)),
-      field('close', $.endcall_tag),
+      field('close', choice($.endcall_tag, alias($._missing_end_tag, $.endcall_tag))),
     ),
 
     call_tag: ($) => seq(
@@ -345,12 +364,12 @@ module.exports = grammar({
 
     caller_parameters: ($) => seq('(', commaSep($.identifier), ')'),
 
-    endcall_tag: ($) => seq($._branch, 'endcall', $._block_end),
+    endcall_tag: ($) => seq(alias($._endcall_start, '{%'), 'endcall', $._block_end),
 
     filter_block: ($) => seq(
       field('open', $.filter_tag),
       repeat(field('body', $._node)),
-      field('close', $.endfilter_tag),
+      field('close', choice($.endfilter_tag, alias($._missing_end_tag, $.endfilter_tag))),
     ),
 
     filter_tag: ($) => seq(
@@ -361,7 +380,7 @@ module.exports = grammar({
       $._block_end,
     ),
 
-    endfilter_tag: ($) => seq($._branch, 'endfilter', $._block_end),
+    endfilter_tag: ($) => seq(alias($._endfilter_start, '{%'), 'endfilter', $._block_end),
 
     // `{% let x %}` with no value opens a block that `{% endlet %}` closes, and
     // `{% set x %}` one that `{% endset %}` closes.
@@ -369,12 +388,12 @@ module.exports = grammar({
       seq(
         field('open', alias($._let_tag, $.let_tag)),
         repeat(field('body', $._node)),
-        field('close', alias($._endlet_tag, $.endlet_tag)),
+        field('close', choice(alias($._endlet_tag, $.endlet_tag), alias($._missing_end_tag, $.endlet_tag))),
       ),
       seq(
         field('open', alias($._set_tag, $.let_tag)),
         repeat(field('body', $._node)),
-        field('close', alias($._endset_tag, $.endlet_tag)),
+        field('close', choice(alias($._endset_tag, $.endlet_tag), alias($._missing_end_tag, $.endlet_tag))),
       ),
     ),
 
@@ -395,19 +414,19 @@ module.exports = grammar({
       field('pattern', $._pattern),
     ),
 
-    _endlet_tag: ($) => seq($._branch, 'endlet', $._block_end),
+    _endlet_tag: ($) => seq(alias($._endlet_start, '{%'), 'endlet', $._block_end),
 
-    _endset_tag: ($) => seq($._branch, 'endset', $._block_end),
+    _endset_tag: ($) => seq(alias($._endset_start, '{%'), 'endset', $._block_end),
 
     raw_block: ($) => seq(
       field('open', $.raw_tag),
       optional(field('body', $.raw_content)),
-      field('close', $.endraw_tag),
+      field('close', choice($.endraw_tag, alias($._missing_end_tag, $.endraw_tag))),
     ),
 
     raw_tag: ($) => seq($._open, 'raw', $._block_end),
 
-    endraw_tag: ($) => seq($._branch, 'endraw', $._block_end),
+    endraw_tag: ($) => seq(alias($._endraw_start, '{%'), 'endraw', $._block_end),
 
     // Expressions, from loosest to tightest:
     // ranges, `||`, `&&`, comparisons, `bitor`, `xor`, `bitand`, shifts,
