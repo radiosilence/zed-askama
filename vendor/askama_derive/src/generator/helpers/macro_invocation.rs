@@ -84,7 +84,14 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             )?;
 
             this.flush_ws(self.macro_def.ws2);
-            size_hint += this.write_buf_writable(self.callsite_ctx, &mut content)?;
+            // Buffered expressions take their location from the context that writes them, so
+            // a tooling host writes the macro body's with the macro's own context.
+            let body_ctx = if crate::tooling::active() {
+                self.macro_ctx
+            } else {
+                self.callsite_ctx
+            };
+            size_hint += this.write_buf_writable(body_ctx, &mut content)?;
             let content = content.into_token_stream();
             quote_into!(buf, self.callsite_ctx.span_for_node(self.callsite_span), {{ #content }});
 

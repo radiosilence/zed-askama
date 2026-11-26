@@ -541,6 +541,16 @@ impl CompileError {
         file_info: Option<FileInfo<'_>>,
         span: Option<Span>,
     ) -> Self {
+        // A tooling host keeps a span that already points into a template, and otherwise
+        // places the error at the node its file info points to, which is more precise than
+        // the derive's attribute. Either way the message needs no location of its own.
+        let span = match span {
+            Some(span) if crate::tooling::in_template(span) => Some(span),
+            span => file_info
+                .as_ref()
+                .and_then(|info| crate::tooling::locate(info.path, info.source?, info.node_source?))
+                .or(span),
+        };
         let msg = match (span, file_info) {
             (None, Some(file_info)) => format!("{msg}{file_info}"),
             _ => msg.to_string(),

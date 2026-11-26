@@ -219,7 +219,13 @@ fn a_parent_template_maps_to_itself_when_a_child_extends_it() {
         tokens_from(&generated, |origin| template_range(origin, "child.html")
             .is_some())
         .contains(&"text"),
-        "`text` is not mapped to child.html; code:\n{}",
+        "`text` is not mapped to child.html; it maps to {:?}; code:\n{}",
+        generated
+            .map
+            .iter()
+            .filter(|mapping| &generated.code[mapping.generated.clone()] == "text")
+            .map(|mapping| &mapping.origin)
+            .collect::<Vec<_>>(),
         generated.code
     );
 }
@@ -253,7 +259,7 @@ fn unsaved_contents_are_read_afresh_on_every_generation() {
 
 #[test]
 fn an_unknown_macro_is_reported_at_the_call_in_the_template() {
-    let template = "<p>{% call nowhere() %}</p>";
+    let template = "<p>{% call nowhere() %}{% endcall %}</p>";
     let files = Memory::with(&[("templates/page.html", template)]);
     let generated = run(
         r#"#[derive(Template)] #[template(path = "page.html")] struct Page;"#,
@@ -273,9 +279,13 @@ fn an_unknown_macro_is_reported_at_the_call_in_the_template() {
         .as_ref()
         .and_then(|origin| template_range(origin, "page.html"))
         .expect("the error points into page.html");
+    let tag_start = template
+        .find("{% call")
+        .expect("fixture holds the call tag");
+    let tag_end = tag_start + "{% call nowhere() %}".len();
     assert!(
-        template[range.clone()].contains("nowhere"),
-        "the error points at {range:?} ({:?}), not at the call",
+        tag_start <= range.start && range.end <= tag_end,
+        "the error points at {range:?} ({:?}), outside the call tag",
         &template[range.clone()]
     );
 }
@@ -329,4 +339,32 @@ fn generated_code_is_valid_rust() {
     );
     syn::parse_file(&generated.code)
         .unwrap_or_else(|err| panic!("not valid Rust: {err}\n{}", generated.code));
+}
+
+#[test]
+fn a_syntax_error_is_reported_where_the_parser_stopped_in_the_template() {
+    let template = "<p>{% if ready %}</p>";
+    let files = Memory::with(&[("templates/page.html", template)]);
+    let generated = run(
+        r#"#[derive(Template)] #[template(path = "page.html")] struct Page { ready: bool }"#,
+        files,
+    );
+    let error = generated
+        .errors
+        .first()
+        .expect("an unclosed `if` is an error");
+    let range = error
+        .origin
+        .as_ref()
+        .and_then(|origin| template_range(origin, "page.html"))
+        .unwrap_or_else(|| panic!("the error points into page.html: {error:?}"));
+    assert!(
+        range.start <= template.len(),
+        "the error points inside the template: {range:?}"
+    );
+    assert!(
+        !error.message.contains("-->"),
+        "the location is the origin, not text in the message: {}",
+        error.message
+    );
 }

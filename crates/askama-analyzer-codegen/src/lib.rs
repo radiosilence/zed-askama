@@ -35,6 +35,12 @@ pub trait Files {
     /// The file's current contents, which may be an unsaved buffer. A missing file is an
     /// [`io::ErrorKind::NotFound`] error, which askama reports as it would at compile time.
     fn read(&self, path: &Path) -> io::Result<String>;
+
+    /// Whether a file exists, which decides where askama resolves a template path. An
+    /// unsaved buffer for a file not yet on disk counts.
+    fn exists(&self, path: &Path) -> bool {
+        self.read(path).is_ok()
+    }
 }
 
 /// Where a generated token came from.
@@ -117,6 +123,7 @@ fn generate_located(input: Input<'_>, files: Rc<dyn Files>) -> Result<Generated,
         .next()
         .ok_or_else(|| Error::Lex("the item is empty".to_owned()))?;
     let item_start = marker.span().byte_range().start + 2;
+    let item_file = marker.span().file();
     let item: TokenStream = trees.collect();
 
     let host = Rc::new(Host {
@@ -127,6 +134,7 @@ fn generate_located(input: Input<'_>, files: Rc<dyn Files>) -> Result<Generated,
     let expansion = askama_derive::tooling::expand(item, import_askama, host);
 
     let locate = Locate {
+        item_file,
         item: item_start..item_start + input.item.len(),
         sources: expansion.sources,
     };
@@ -140,9 +148,9 @@ fn generate_located(input: Input<'_>, files: Rc<dyn Files>) -> Result<Generated,
     printer.stream(expansion.tokens);
 
     let mut templates: Vec<Arc<Path>> = Vec::new();
-    for (path, _) in &locate.sources {
-        if !templates.contains(path) {
-            templates.push(Arc::clone(path));
+    for source in &locate.sources {
+        if !templates.contains(&source.path) {
+            templates.push(Arc::clone(&source.path));
         }
     }
     Ok(Generated {
@@ -178,29 +186,43 @@ impl askama_derive::tooling::Host for Host {
     fn read(&self, path: &Path) -> io::Result<String> {
         self.files.read(path)
     }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.files.exists(path)
+    }
 }
 
 /// Turns spans into origins: the item's text, or one of the template files askama read.
+///
+/// A span's byte range counts from the start of the parsed string it came from, so a span
+/// is placed by that string's name first and its range second.
 struct Locate {
+    /// proc-macro2's name for the parsed string holding the item.
+    item_file: String,
     item: Range<usize>,
-    sources: Vec<(Arc<Path>, Range<usize>)>,
+    sources: Vec<askama_derive::tooling::Source>,
 }
 
 impl Locate {
     fn origin(&self, span: Span) -> Option<Origin> {
         let range = span.byte_range();
+        if range.is_empty() && range.start == 0 {
+            // The call site, which locates nothing.
+            return None;
+        }
+        let file = span.file();
         let within = |outer: &Range<usize>| outer.start <= range.start && range.end <= outer.end;
-        if within(&self.item) {
+        if file == self.item_file && within(&self.item) {
             return Some(Origin::Item {
                 range: range.start - self.item.start..range.end - self.item.start,
             });
         }
         self.sources
             .iter()
-            .find(|(_, source)| within(source))
-            .map(|(path, source)| Origin::Template {
-                path: Arc::clone(path),
-                range: range.start - source.start..range.end - source.start,
+            .find(|source| source.file == file && within(&source.range))
+            .map(|source| Origin::Template {
+                path: Arc::clone(&source.path),
+                range: range.start - source.range.start..range.end - source.range.start,
             })
     }
 }

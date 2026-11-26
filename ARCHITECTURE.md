@@ -18,7 +18,9 @@ askama's generator is written for a compiler, where a process expands a crate on
 |---|---|
 | Template ranges are kept outside a proc macro (`span_for_node`, compile errors) | upstream drops them unless `proc_macro::is_available()`, since spans mean nothing to a compiler that is not running |
 | Each template file read gets a located literal of its own, recorded in `Expansion::sources` | upstream gives every file the derive's literal, so tokens from a parent, include or import could only point into the wrong text |
-| Templates and `askama.toml` are read through the host | an editor's unsaved buffers must win over the disk |
+| Templates and `askama.toml` are read through the host, and a template path resolves by asking the host whether the file exists | an editor's unsaved buffers must win over the disk, including a new template not yet saved |
+| An error whose span is not already in a template is placed where its file info points | upstream turns that location into text appended to the message, which an editor cannot place |
+| A block's and a macro body's buffered expressions are written with the block's or macro's own context, before control returns to the caller | askama buffers `{{ }}` expressions and writes them with whatever context is current at the next flush, so a child's block or an imported macro would be located in the caller's file. Writes can therefore be grouped differently from a compiler's output; each expression is generated identically, so what rust-analyzer checks does not change |
 | The process-wide template cache and parsed-template cache are bypassed | the first is keyed by path and never invalidated, so edits would be ignored; the second is keyed by content, so it would grow with every edit |
 | The manifest directory and the calling file come from the host | upstream reads `CARGO_MANIFEST_DIR` and the call-site span, which a server serving many crates does not have |
 

@@ -1298,7 +1298,12 @@ impl<'a> Generator<'a, '_> {
                 RenderFor::Template,
             )?;
 
-            if !child.locals.is_current_empty() {
+            if crate::tooling::active() {
+                // Buffered expressions take their location from the context that writes
+                // them, so a tooling host writes the block's with the block's own context
+                // before control returns to the template that called it.
+                size_hint += child.write_buf_writable(&child_ctx, buf)?;
+            } else if !child.locals.is_current_empty() {
                 // Need to flush the buffer before popping the variable stack
                 size_hint += child.write_buf_writable(ctx, buf)?;
             }

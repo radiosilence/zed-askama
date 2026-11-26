@@ -193,13 +193,13 @@ impl Config {
         let path = 'find_path: {
             if let Some(root) = start_at {
                 let relative = root.with_file_name(path);
-                if relative.exists() {
+                if crate::tooling::exists(&relative).unwrap_or_else(|| relative.exists()) {
                     break 'find_path relative;
                 }
             }
             for dir in &self.dirs {
                 let rooted = dir.join(path);
-                if rooted.exists() {
+                if crate::tooling::exists(&rooted).unwrap_or_else(|| rooted.exists()) {
                     break 'find_path rooted;
                 }
             }
