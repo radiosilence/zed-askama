@@ -1,0 +1,91 @@
+================================================================================
+A filter applies to the expression before it
+================================================================================
+
+{{ name|lower }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (filter_expression
+      (identifier)
+      (filter
+        (identifier))))
+  (content))
+
+================================================================================
+Filters chain and take arguments
+================================================================================
+
+{{ name|truncate(10)|e("html") }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (filter_expression
+      (filter_expression
+        (identifier)
+        (filter
+          (identifier)
+          (arguments
+            (integer_literal))))
+      (filter
+        (identifier)
+        (arguments
+          (string_literal
+            (string_content))))))
+  (content))
+
+================================================================================
+Filters may be paths with generics
+================================================================================
+
+{{ x|kit::wrap }}{{ x|filters::cast::<u8>(1) }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (filter_expression
+      (identifier)
+      (filter
+        (scoped_identifier
+          (identifier)
+          (identifier)))))
+  (expression_tag
+    (filter_expression
+      (identifier)
+      (filter
+        (generic_function
+          (scoped_identifier
+            (identifier)
+            (identifier))
+          (type_arguments
+            (primitive_type)))
+        (arguments
+          (integer_literal)))))
+  (content))
+
+================================================================================
+A double bar is logical or, not a filter
+================================================================================
+
+{{ a || b|f }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (binary_expression
+      (identifier)
+      (filter_expression
+        (identifier)
+        (filter
+          (identifier)))))
+  (content))

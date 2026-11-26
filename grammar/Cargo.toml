@@ -1,0 +1,24 @@
+[package]
+name = "askama-analyzer-grammar"
+version = "0.1.0"
+edition = "2024"
+description = "Tree-sitter grammar for Askama templates"
+license = "MIT"
+repository = "https://github.com/radiosilence/zed-askama"
+publish = false
+build = "bindings/rust/build.rs"
+include = ["bindings/rust/*", "grammar.js", "src/*", "tree-sitter.json"]
+
+[lib]
+path = "bindings/rust/lib.rs"
+
+[dependencies]
+tree-sitter-language = "0.1"
+
+[build-dependencies]
+cc = "1"
+
+[dev-dependencies]
+# The differential test holds the grammar to this exact parser release.
+askama_parser = "=0.16.1"
+tree-sitter = "0.27"

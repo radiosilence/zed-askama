@@ -1,0 +1,86 @@
+================================================================================
+Let and set assign a value
+================================================================================
+
+{% let x = 1 %}{% set y: u8 = 2 %}{% let mut z = 3 %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (let_statement
+    (identifier)
+    (integer_literal))
+  (let_statement
+    (identifier)
+    (primitive_type)
+    (integer_literal))
+  (let_statement
+    (mutable_specifier)
+    (identifier)
+    (integer_literal))
+  (content))
+
+================================================================================
+Let without a value opens a block
+================================================================================
+
+{% let x %}body{% endlet %}{% set y: String %}body{% endset %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (let_block
+    (let_tag
+      (identifier))
+    (content)
+    (endlet_tag))
+  (let_block
+    (let_tag
+      (identifier)
+      (type_identifier))
+    (content)
+    (endlet_tag))
+  (content))
+
+================================================================================
+Declare forward-declares a variable
+================================================================================
+
+{% decl x %}{% declare mut y %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (declare_statement
+    (identifier))
+  (declare_statement
+    (mutable_specifier)
+    (identifier))
+  (content))
+
+================================================================================
+Mut assigns and compound-assigns
+================================================================================
+
+{% mut x = 1 %}{% mut x += 2 %}{% mut x <<= 1 %}{% mut x |= y %}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (assignment_statement
+    (identifier)
+    (integer_literal))
+  (assignment_statement
+    (identifier)
+    (integer_literal))
+  (assignment_statement
+    (identifier)
+    (integer_literal))
+  (assignment_statement
+    (identifier)
+    (identifier))
+  (content))

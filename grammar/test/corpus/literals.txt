@@ -1,0 +1,143 @@
+================================================================================
+String literals take every escape askama accepts
+================================================================================
+
+{{ "a\n\r\t\\\0\'\"\x41\u{1F600}" }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (string_literal
+      (string_content)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)
+      (escape_sequence)))
+  (content))
+
+================================================================================
+Byte and C strings are string literals
+================================================================================
+
+{{ b"bytes" }}{{ c"cstr" }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (string_literal
+      (string_content)))
+  (expression_tag
+    (string_literal
+      (string_content)))
+  (content))
+
+================================================================================
+Character literals take every escape askama accepts
+================================================================================
+
+{{ 'a' }}{{ '\n' }}{{ '\'' }}{{ '\x7f' }}{{ '\u{10FFFF}' }}{{ b'x' }}{{ '字' }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (char_literal))
+  (expression_tag
+    (char_literal))
+  (expression_tag
+    (char_literal))
+  (expression_tag
+    (char_literal))
+  (expression_tag
+    (char_literal))
+  (expression_tag
+    (char_literal))
+  (expression_tag
+    (char_literal))
+  (content))
+
+================================================================================
+Integers take bases, separators and suffixes
+================================================================================
+
+{{ 1_000 }}{{ 0xff_u8 }}{{ 0o17 }}{{ 0b1010i32 }}{{ 7usize }}{{ 3f32 }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (integer_literal))
+  (expression_tag
+    (integer_literal))
+  (expression_tag
+    (integer_literal))
+  (expression_tag
+    (integer_literal))
+  (expression_tag
+    (integer_literal))
+  (expression_tag
+    (integer_literal))
+  (content))
+
+================================================================================
+Floats take fractions, exponents and suffixes
+================================================================================
+
+{{ 1.5 }}{{ 1_.2_e+_3_f64 }}{{ 4e3 }}{{ 2.0E-2 }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (float_literal))
+  (expression_tag
+    (float_literal))
+  (expression_tag
+    (float_literal))
+  (expression_tag
+    (float_literal))
+  (content))
+
+================================================================================
+A number followed by two dots is a range, not a float
+================================================================================
+
+{{ 1..2 }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (range_expression
+      (integer_literal)
+      (integer_literal)))
+  (content))
+
+================================================================================
+Booleans are literals
+================================================================================
+
+{{ true }}{{ false }}
+
+--------------------------------------------------------------------------------
+
+(template
+  (content)
+  (expression_tag
+    (boolean_literal))
+  (expression_tag
+    (boolean_literal))
+  (content))
