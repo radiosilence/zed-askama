@@ -1,0 +1,1 @@
+- **The extension sits at the repository's root.** A dev extension installs from the repository itself rather than from `editors/zed`, and the registry entry needs no `path`.
