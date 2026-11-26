@@ -204,7 +204,9 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
       - name: Check formatting
-        run: cargo fmt --all -- --check
+        # The workspace's own crates; `--all` would also format the vendored
+        # askama_derive, which must stay as upstream and its patch left it.
+        run: cargo fmt -- --check
       - name: Clippy
         if: ${{ !cancelled() && steps.cache.outcome == 'success' }}
         run: cargo clippy --workspace --all-targets --locked -- -D warnings

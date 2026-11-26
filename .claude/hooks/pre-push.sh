@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook on Bash (.claude/settings.json). Before a `git push`, runs
-# `cargo fmt --all` in the tree being pushed and refuses the push (exit 2,
+# `cargo fmt` in the tree being pushed and refuses the push (exit 2,
 # reason on stderr) if that leaves unstaged changes. Never commits or amends.
 # Reads the hook's JSON on stdin: `.tool_input.command` and `.cwd`.
 set -uo pipefail
@@ -32,14 +32,18 @@ cd "$root" || exit 0
 # Only a Rust tree has anything to format.
 [ -f Cargo.toml ] || exit 0
 
+# The workspace's members only: `--all` also formats path dependencies, and the
+# vendored askama_derive must stay as upstream and its patch left it (it ships
+# a .rustfmt.toml of nightly options that stable rustfmt warns about).
+#
 # Hooks run without the user's shell profile, so cargo may not be on PATH:
 # take it through mise, which pins the toolchain, or from rustup's bin.
 if command -v mise >/dev/null 2>&1; then
-  fmt=(mise exec -- cargo fmt --all)
+  fmt=(mise exec -- cargo fmt)
 elif command -v cargo >/dev/null 2>&1; then
-  fmt=(cargo fmt --all)
+  fmt=(cargo fmt)
 elif [ -x "$HOME/.cargo/bin/cargo" ]; then
-  fmt=("$HOME/.cargo/bin/cargo" fmt --all)
+  fmt=("$HOME/.cargo/bin/cargo" fmt)
 else
   echo "Pre-push: no cargo found to run cargo fmt in $root." >&2
   exit 2

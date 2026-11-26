@@ -35,6 +35,7 @@ One workflow, `.github/workflows/ci-cd.yml`, ending in `Checks`, the only requir
 
 - **askama's code generation is never reimplemented.** The analyser runs askama's generator, vendored in `vendor/askama_derive`, so what rust-analyzer analyses is what `cargo build` compiles.
 - **`vendor/askama_derive` is upstream's release plus `vendor/askama_derive-tooling.patch`, and nothing else.** Edit the vendored files, then run `just vendor-askama --write-patch`; CI fails when `just vendor-askama --check` does. ARCHITECTURE.md lists what the patch changes and why.
+- **Formatting never touches `vendor/`.** `cargo fmt` (never `--all`, which also formats path dependencies) in the justfile, CI, lefthook and the agents' push guard. askama_derive ships its own `.rustfmt.toml`, and any reformatting there would show as drift from the patch.
 - **`askama_parser` is pinned exactly to the vendored generator's version.** A new askama release is taken by changing the pin and running `just vendor-askama`, which moves both.
 - **Every thread that parses with proc-macro2 frees its source map afterwards** (`proc_macro2::extra::invalidate_current_thread_spans`), since `span-locations` keeps every parsed text for the life of the thread. `askama_analyzer_codegen::generate` does this itself.
 - **The extension's grammar `rev` names a pushed commit whose `grammar/src` matches `HEAD`'s.** Zed builds the grammar from that commit, never from the extension's own checkout, so a grammar change is only live once `rev` moves; CI fails while they differ.

@@ -4,7 +4,7 @@
 # clippy with warnings as errors, the tests, the extension, the vendored
 # generator, the changelog, the version files and the workflows.
 check: grammar extension
-    cargo fmt --all -- --check
+    cargo fmt -- --check
     cargo clippy --workspace --all-targets --locked -- -D warnings
     cargo test --workspace --locked
     python3 scripts/vendor-askama.py --check
@@ -24,11 +24,12 @@ grammar:
 # The checks that take seconds: the lockfile matches the manifests, and formatting.
 fast:
     cargo metadata --locked --format-version 1 > /dev/null
-    cargo fmt --all -- --check
+    cargo fmt -- --check
 
-# Format the Rust code.
+# Format the Rust code. Not `--all`, which also formats path dependencies: the
+# vendored askama_derive must stay as upstream and its patch left it.
 fmt:
-    cargo fmt --all
+    cargo fmt
 
 # The Zed extension as Zed's builder compiles it, with its lints and unit
 # tests. A workspace of its own, so the root's commands do not reach it.
