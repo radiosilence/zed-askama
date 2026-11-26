@@ -29,33 +29,8 @@ pub async fn run(root: &Path, rust_analyzer: Option<PathBuf>) -> anyhow::Result<
         .canonicalize()
         .with_context(|| format!("finding {}", root.display()))?;
     let started = Instant::now();
-    let analysis = Analysis::load(&root, Generator::spawn()?, Vfs::default()).await?;
-    let generated_in = started.elapsed();
-    let mut workspace = Workspace::new(analysis, Encoding::Utf8);
-
-    if let Some(path) = rust_analyzer {
-        let config = Config {
-            path: Some(path),
-            ..Config::default()
-        };
-        let wake = Arc::new(Notify::new());
-        if let Some(message) = workspace.start(&config, &wake).await {
-            bail!(message);
-        }
-        workspace.sync();
-        let loading = Instant::now();
-        let Some(session) = workspace.session() else {
-            bail!("rust-analyzer stopped while starting");
-        };
-        if !session.ready(LOAD).await {
-            bail!("rust-analyzer did not finish loading within {LOAD:?}");
-        }
-        while tokio::time::timeout(QUIET, wake.notified()).await.is_ok() {}
-        eprintln!(
-            "rust-analyzer loaded and checked in {:.1?}",
-            loading.elapsed()
-        );
-    }
+    let workspace = analyse(&root, rust_analyzer, Encoding::Utf8).await?;
+    let elapsed = started.elapsed();
 
     let problems = workspace.problems();
     let mut count = 0;
@@ -73,7 +48,7 @@ pub async fn run(root: &Path, rust_analyzer: Option<PathBuf>) -> anyhow::Result<
         count += 1;
     }
     eprintln!(
-        "{} template items in {} packages, generated in {generated_in:.1?}; {count} problems",
+        "{} template items in {} packages, checked in {elapsed:.1?}; {count} problems",
         workspace.analysis.item_count(),
         workspace.analysis.packages.len()
     );
@@ -82,6 +57,41 @@ pub async fn run(root: &Path, rust_analyzer: Option<PathBuf>) -> anyhow::Result<
     } else {
         ExitCode::FAILURE
     })
+}
+
+/// Loads the Cargo workspace at `root` and generates every template item. Given a
+/// rust-analyzer, also starts it, sends it the overlays, and waits until it has loaded the
+/// workspace and published its diagnostics.
+pub async fn analyse(
+    root: &Path,
+    rust_analyzer: Option<PathBuf>,
+    encoding: Encoding,
+) -> anyhow::Result<Workspace> {
+    let analysis = Analysis::load(root, Generator::spawn()?, Vfs::default()).await?;
+    let mut workspace = Workspace::new(analysis, encoding);
+    let Some(path) = rust_analyzer else {
+        return Ok(workspace);
+    };
+    let config = Config {
+        path: Some(path),
+        ..Config::default()
+    };
+    let wake = Arc::new(Notify::new());
+    if let Some(message) = workspace.start(&config, &wake).await {
+        bail!(message);
+    }
+    workspace.sync();
+    let Some(session) = workspace.session() else {
+        bail!("rust-analyzer stopped while starting");
+    };
+    if !session.ready(LOAD).await {
+        bail!("rust-analyzer did not finish loading within {LOAD:?}");
+    }
+    while tokio::time::timeout(QUIET, wake.notified()).await.is_ok() {}
+    if let Some(trouble) = workspace.session().and_then(|session| session.trouble()) {
+        eprintln!("rust-analyzer could not load everything: {trouble}");
+    }
+    Ok(workspace)
 }
 
 /// One-based line and character column, as editors and compilers print them.

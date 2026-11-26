@@ -1,0 +1,12 @@
+# A small askama crate the analyser's end-to-end tests run against. It is a
+# workspace of its own, so it is not part of the repository's.
+[package]
+name = "shop"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+askama = "=0.16.1"
+
+[workspace]

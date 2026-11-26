@@ -152,6 +152,7 @@ impl Workspace {
                 Err(err) => tracing::warn!(path = %path.display(), %err, "sending an overlay"),
             }
         }
+        tracing::debug!(overlays = self.sent.len(), "rust-analyzer has the overlays");
         // A file that no longer defines templates goes back to its text on disk.
         let gone: Vec<PathBuf> = self
             .sent
@@ -175,16 +176,26 @@ impl Workspace {
         };
         for (path, sent) in &self.sent {
             let Some((version, diagnostics)) = session.diagnostics(path) else {
+                tracing::debug!(path = %path.display(), "no diagnostics from rust-analyzer yet");
                 continue;
             };
             if version.is_some_and(|version| version != sent.version) {
+                tracing::debug!(path = %path.display(), ?version, sent = sent.version, "diagnostics for an older overlay");
                 continue;
             }
             let Some(file) = self.analysis.file(path) else {
                 continue;
             };
+            tracing::debug!(path = %path.display(), count = diagnostics.len(), "rust-analyzer diagnostics");
+            if let Some(dump) = std::env::var_os("ASKAMA_ANALYZER_DUMP_OVERLAYS") {
+                let _ = std::fs::write(
+                    std::path::Path::new(&dump).join(path.file_name().unwrap_or_default()),
+                    sent.overlay.text(),
+                );
+            }
             let lines = Lines::new(sent.overlay.text(), self.encoding);
             for diagnostic in diagnostics {
+                tracing::debug!(path = %path.display(), message = %diagnostic.message, range = ?diagnostic.range, severity = ?diagnostic.severity, "rust-analyzer diagnostic");
                 if diagnostic.severity != Some(DiagnosticSeverity::ERROR) {
                     continue;
                 }

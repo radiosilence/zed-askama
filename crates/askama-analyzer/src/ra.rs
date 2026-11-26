@@ -115,6 +115,9 @@ fn overrides() -> Value {
         // It watches files itself: the server does not forward the editor's file events.
         "files": { "watcher": "server" },
         "lens": { "enable": false },
+        // Unknown fields and methods are among rust-analyzer's experimental checks; they are
+        // the errors a template most often has.
+        "diagnostics": { "experimental": { "enable": true } },
     })
 }
 
@@ -130,6 +133,10 @@ fn merge(base: &mut Value, over: Value) {
     }
 }
 
+/// Ends the connection's main loop. async-lsp panics in a loop whose last handle goes away
+/// while it runs, so a session sends this when it is dropped.
+struct Stop;
+
 /// rust-analyzer's `experimental/serverStatus`, which says when it has finished loading.
 enum ServerStatus {}
 
@@ -141,7 +148,10 @@ impl Notification for ServerStatus {
 #[derive(Debug, Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ServerStatusParams {
+    /// `ok`, `warning` or `error`: whether it loaded the workspace.
+    health: String,
     quiescent: bool,
+    message: Option<String>,
 }
 
 /// What rust-analyzer tells the session between requests.
@@ -149,6 +159,8 @@ struct Heard {
     /// The latest diagnostics for each document, with the version they are for.
     diagnostics: Mutex<HashMap<Url, (Option<i32>, Vec<Diagnostic>)>>,
     quiescent: watch::Sender<bool>,
+    /// What rust-analyzer said was wrong when it last reported itself unhealthy.
+    trouble: Mutex<Option<String>>,
     /// Wakes the lane, so new diagnostics are published.
     wake: Arc<Notify>,
 }
@@ -202,6 +214,7 @@ impl Session {
         let heard = Arc::new(Heard {
             diagnostics: Mutex::new(HashMap::new()),
             quiescent: quiescent_tx,
+            trouble: Mutex::new(None),
             wake,
         });
         let settings = config.settings();
@@ -307,6 +320,12 @@ impl Session {
         self.heard.diagnostics.lock().get(&uri).cloned()
     }
 
+    /// What rust-analyzer last said was wrong with loading the workspace, if anything. While
+    /// it cannot load the workspace, types are unknown and hover, completion and errors suffer.
+    pub fn trouble(&self) -> Option<String> {
+        self.heard.trouble.lock().clone()
+    }
+
     /// The connection, for requests.
     pub fn server(&mut self) -> ServerSocket {
         self.last_used = tokio::time::Instant::now();
@@ -395,6 +414,11 @@ fn client_router(heard: Arc<Heard>, settings: Value) -> Router<Arc<Heard>> {
             ControlFlow::Continue(())
         })
         .notification::<ServerStatus>(|heard, params| {
+            *heard.trouble.lock() = (params.health != "ok").then(|| {
+                params.message.unwrap_or_else(|| {
+                    format!("rust-analyzer reports its health as {}", params.health)
+                })
+            });
             heard.quiescent.send_replace(params.quiescent);
             if params.quiescent {
                 heard.wake.notify_one();
@@ -410,8 +434,16 @@ fn client_router(heard: Arc<Heard>, settings: Value) -> Router<Arc<Heard>> {
             ControlFlow::Continue(())
         })
         .notification::<Progress>(|_, _| ControlFlow::Continue(()))
-        .unhandled_notification(|_, _| ControlFlow::Continue(()));
+        .unhandled_notification(|_, _| ControlFlow::Continue(()))
+        .event::<Stop>(|_, _| ControlFlow::Break(Ok(())));
     router
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        // Ends the main loop before its last handle goes; the process is killed after.
+        let _ = self.server.emit(Stop);
+    }
 }
 
 #[cfg(test)]

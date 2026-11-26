@@ -27,6 +27,25 @@ askama's generator is written for a compiler, where a process expands a crate on
 
 Without a host the patched generator behaves exactly as upstream's. The same change is proposed upstream; once it lands the vendoring goes. Until then the crates are not published to crates.io, which refuses a path dependency.
 
+## The server
+
+`askama-analyzer` serves the protocol on stdin and stdout. Its parts, and the rules each keeps:
+
+- **One ordered lane owns the analysis** (`server.rs`). Notifications only record a document's whole text in a table shared with the lane and wake it; the lane waits for edits to settle (150 ms, at most a second), applies every change in order, sends rust-analyzer what changed and publishes the diagnostics that changed. Requests go down the same lane, after any change that arrived before them. *Why:* a change is a snapshot of a document, never a delta, so a lane that falls behind loses intermediate states and never a change; and a request sees the documents as the user sees them.
+- **One thread runs askama's generator and `syn`** (`generator.rs`). *Why:* both keep thread-local state (the tooling host, proc-macro2's source map), freed after each job; one named thread keeps it in one place and the async workers free of it.
+- **The index finds items with `syn`** (`index.rs`): every struct and enum deriving `Template`, nested ones included, with the byte ranges of the derive's `Template` path (and one comma beside it) and each `#[template]` attribute. A file that stops parsing keeps its last index, since it is being typed.
+- **A template's owners are the items whose generation read it** (`Generated::templates`), so `extends`, `include` and `import` are followed by askama itself, never by a second resolver.
+
+## The overlay and rust-analyzer
+
+Zed gives an extension no way to add documents to the rust-analyzer it runs for Rust, so the server runs a private one per workspace (`ra.rs`), with the binary and settings the Zed extension resolves from the user's own `lsp.rust-analyzer` settings. Its own settings override four things: no check on save (the user's instance runs it), its own target directory (so it never waits on the user's cargo lock), no auto-import or postfix completions (they would edit Rust code), and its own file watching. It starts when a template of its workspace is open and stops after ten idle minutes, since it holds the whole workspace's analysis in memory.
+
+- **Each Rust file defining template items reaches it as an overlay** (`overlay.rs`): the user's text, with each item's `Template` derive and `#[template]` attributes blanked with spaces of the same length and the generated code inserted right after the item, in its own scope, so its imports and private fields are visible. The generator's `compile_error!` statements are blanked too. *Why:* blanking keeps every byte where it was, so an offset in the user's text maps into the overlay by adding the lengths of the insertions before it, and rust-analyzer never expands askama's derive a second time.
+- **A question maps in three steps** (`workspace.rs`): the generator's map gives the generated token a template offset came from (the most specific one covering it), the overlay gives that token's place, and rust-analyzer is asked there. Answers come back the same way; an answer in the user's own Rust code passes through. The client and rust-analyzer are given one position encoding, so positions in files the server does not rewrite need no conversion.
+- **Completion asks about a probe** (`features.rs`): the item generated with a marker identifier typed at the cursor, so a half-typed `{{ user. }}` parses, with the marker removed from the code before rust-analyzer sees it. The completions' edits around the cursor in the probe are the same text around the cursor in the template. The clean overlay is put back after.
+- **A rename edit lands only where the text it replaces is the old name.** *Why:* generated code askama wrote itself, with no template text behind it, can map to a nearby template range and must not be allowed to rewrite it.
+- **rust-analyzer's errors in generated code are published at their template positions**, from the overlay version they were computed for and no other.
+
 ## Memory
 
 proc-macro2's fallback keeps every text it has parsed, per thread, for the life of the thread when `span-locations` is on. `generate` reads every span into plain ranges and then calls `proc_macro2::extra::invalidate_current_thread_spans`, so a thread can generate indefinitely without growing. Any other code that parses with proc-macro2 (`syn` over Rust files) on a long-lived thread must do the same.
