@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.1
+
+### Added
+
+- **Completion offers loop variables, tags, filters and template paths, and go to definition follows includes, macros and blocks.** Completion of a bare name offered only the template struct's fields; it now offers the loop variables and `let` bindings in scope too, tag keywords with the closing tag of the innermost open block first, askama's built-in filters after a pipe, and template files inside `extends`, `include` and `import`. Go to definition takes a path to its file, a `call` to its macro and an overriding block to the parent's. Zed shows rust-analyzer loading as progress, and a Claude Code plugin gives Claude Code's LSP tool the same analysis.
+
+### Changed
+
+- **The extension downloads askama-analyzer from its own repository.** The language server is now developed and released in radiosilence/askama-analyzer, so it ships on its own schedule and installed extensions take its newest release; this repository keeps the grammar and the extension.
+- **The extension sits at the repository's root.** A dev extension installs from the repository itself rather than from `editors/zed`, and the registry entry needs no `path`.
+
+### Internal
+
+- **The grammar's crate is named `tree-sitter-askama`.** Its old name came from the workspace it shared with the language server.
+
 ## 0.1.0
 
 ### Added

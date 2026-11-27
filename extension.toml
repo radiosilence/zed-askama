@@ -1,7 +1,7 @@
 id = "askama"
 name = "Askama"
 description = "Askama template support: highlighting, brackets, indentation, outline and snippets."
-version = "0.1.0"
+version = "0.1.1"
 schema_version = 1
 authors = ["James Cleveland <jc@blit.cc>"]
 repository = "https://github.com/radiosilence/zed-askama"
@@ -35,5 +35,5 @@ languages = ["Askama HTML", "Askama Markdown", "Askama Text", "HTML", "Rust"]
 # `rev` must name a pushed commit whose grammar/ matches grammar/ at HEAD.
 [grammars.askama]
 repository = "https://github.com/radiosilence/zed-askama"
-rev = "5835de815db9687bcce15fbcc49882b7377c9e3b"
+rev = "949ca1ad69e8e5745075cb7c5a348a1db7359a66"
 path = "grammar"
